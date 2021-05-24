@@ -1,8 +1,10 @@
-use std::{collections::HashMap, env, fmt::Display, fs::File, io::BufReader, str::FromStr};
+use std::{collections::HashMap, fmt::Display, fs::File, io::BufReader, str::FromStr};
 
 use chrono::{DateTime, NaiveTime, Utc};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Deserializer};
+use structopt::StructOpt;
+use thiserror::Error;
 
 #[derive(Debug, Deserialize)]
 struct CourseResult {
@@ -44,7 +46,35 @@ where
     T::from_str(&s).map_err(serde::de::Error::custom)
 }
 
+#[derive(Error, Debug)]
+enum ArgumentsError {
+    #[error("Invalid cup, valid cups are: city-cup, forest-cup")]
+    UnknownCup,
+}
+
+fn parse_cup(flag: &str) -> Result<String, ArgumentsError> {
+    if flag == "city-cup" || flag == "forest-cup" {
+        Ok(flag.to_owned())
+    } else {
+        Err(ArgumentsError::UnknownCup)
+    }
+}
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "load")]
+struct Opt {
+    #[structopt(long, default_value = "forest-cup", parse(try_from_str = parse_cup))]
+    cup: String,
+
+    #[structopt(long)]
+    season: String,
+
+    #[structopt(name = "FILE")]
+    paths: Vec<String>,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let opt = Opt::from_args();
 
     let conn = Connection::open("ov.sqlite")?;
     conn.pragma_update(None, "foreign_keys", &"on")?;
@@ -61,11 +91,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         create table if not exists Event (
             id integer primary key autoincrement,
+            cup text not null,
+            season text not null,
             name text not null,
             location text not null,
             date text not null,
 
-            unique(name, date)
+            unique(cup, season, name, date)
         );
 
         create table if not exists Result (
@@ -83,8 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ",
     )?;
 
-
-    for path in env::args().skip(1) {
+    for path in opt.paths {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
@@ -92,10 +123,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         conn.execute(
             "
-            insert into Event (name, location, date) values (?, ?, ?)
-            on conflict (name, date) do update set location = excluded.location;
+            insert into Event (cup, season, name, location, date) values (?, ?, ?, ?, ?)
+            on conflict (cup, season, name, date) do update set location = excluded.location;
         ",
-            params![event.name, event.location, event.date],
+            params![opt.cup, opt.season, event.name, event.location, event.date],
         )?;
         let event_db_id: i64 = conn.query_row(
             "
@@ -148,7 +179,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
             }
         }
-    };
+    }
 
     Ok(())
 }
