@@ -1,9 +1,121 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, NaiveTime, Timelike, Utc};
 use itertools::Itertools;
 use rusqlite::{params, Connection};
-use std::collections::HashMap;
-use structopt::StructOpt;
-use thiserror::Error;
+
+pub mod cli;
+pub mod webres;
+
+pub fn create_database() -> Result<(), Box<dyn std::error::Error>> {
+    let conn = Connection::open("ov.sqlite")?;
+    conn.pragma_update(None, "foreign_keys", &"on")?;
+    conn.pragma_update(None, "journal_mode", &"WAL")?;
+    conn.execute_batch(
+        "
+        create table if not exists Runner (
+            id integer primary key autoincrement,
+            name text not null,
+            club text not null,
+
+            unique(name)
+        );
+
+        create table if not exists Event (
+            id integer primary key autoincrement,
+            cup text not null,
+            season text not null,
+            name text not null,
+            location text not null,
+            date text not null,
+
+            unique(cup, season, name, date)
+        );
+
+        create table if not exists Result (
+            id integer primary key autoincrement,
+            event_id integer not null,
+            runner_id integer not null,
+            category_name text not null,
+            age_class text not null,
+            position integer not null,
+            time text not null,
+
+            foreign key(event_id) references Event(id),
+            foreign key(runner_id) references Runner(id)
+        )
+    ",
+    )?;
+    Ok(())
+}
+
+pub fn store_event(
+    cup: String,
+    season: String,
+    event: webres::Event,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let conn = Connection::open("ov.sqlite")?;
+    conn.execute(
+        "
+        insert into Event (cup, season, name, location, date) values (?, ?, ?, ?, ?)
+        on conflict (cup, season, name, date) do update set location = excluded.location;
+    ",
+        params![cup, season, event.name, event.location, event.date],
+    )?;
+    let event_db_id: i64 = conn.query_row(
+        "
+        select id from Event where name = ? and date = ?
+    ",
+        params![event.name, event.date],
+        |row| row.get(0),
+    )?;
+    conn.execute(
+        "
+        delete from Result where event_id = ?
+    ",
+        params![event_db_id],
+    )?;
+
+    for category in event.categories.values() {
+        for result in &category.results {
+            if result.status != "OK" || result.position == 0 {
+                continue;
+            }
+
+            conn.execute(
+                "
+                insert into Runner (name, club) values (?, ?)
+                on conflict (name) do update set club = excluded.club;
+            ",
+                params![result.name, result.club],
+            )?;
+            let runner_db_id: i64 = conn.query_row(
+                "
+                select id from Runner where name = ?
+            ",
+                params![result.name],
+                |row| row.get(0),
+            )?;
+
+            conn.execute(
+                "
+                insert into Result (event_id, runner_id, category_name, age_class, position, time)
+                values (?, ?, ?, ?, ?, ?)
+            ",
+                params![
+                    event_db_id,
+                    runner_db_id,
+                    category.name,
+                    result.age_class,
+                    result.position,
+                    result.time
+                ],
+            )?;
+        }
+    }
+
+    Ok(())
+}
 
 #[derive(Debug)]
 struct Performance {
@@ -22,36 +134,11 @@ fn total_seconds(time: impl Timelike) -> u32 {
     time.second() + time.minute() * 60 + time.hour() * 60 * 60
 }
 
-#[derive(Error, Debug)]
-enum ArgumentsError {
-    #[error("Invalid cup, valid cups are: city-cup, forest-cup")]
-    UnknownCup,
-}
-
-fn parse_cup(flag: &str) -> Result<String, ArgumentsError> {
-    if flag == "city-cup" || flag == "forest-cup" {
-        Ok(flag.to_owned())
-    } else {
-        Err(ArgumentsError::UnknownCup)
-    }
-}
-
-#[derive(StructOpt, Debug)]
-#[structopt(name = "ranking")]
-struct Opt {
-    #[structopt(long, default_value = "forest-cup", parse(try_from_str = parse_cup))]
+pub fn calculate_ranking(
     cup: String,
-
-    #[structopt(long, default_value = "2020")]
     season: String,
-
-    #[structopt(long, default_value = "H35")]
     age_class: String,
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let opt = Opt::from_args();
-
+) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open("ov.sqlite")?;
 
     // Find all results of all runners with at least one ranking in the given category
@@ -78,7 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ",
     )?;
     let all_results: Vec<Performance> = stmt
-        .query_map(params![opt.cup, opt.season, opt.age_class], |row| {
+        .query_map(params![cup, season, age_class], |row| {
             Ok(Performance {
                 name: row.get(0)?,
                 club: row.get(1)?,
@@ -105,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .group_by(|result| result.name.to_owned())
     {
         let mut runner_results: Vec<Performance> = runner_results.collect();
-        if runner_results.last().unwrap().age_class == opt.age_class {
+        if runner_results.last().unwrap().age_class == age_class {
             results.append(&mut runner_results);
         }
     }
@@ -157,8 +244,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let total_score: u32 = scores.iter().take(4).sum();
         dbg!(name, total_score, scores);
     }
-
-    // create intermediate rankings to show result evolution
 
     Ok(())
 }
