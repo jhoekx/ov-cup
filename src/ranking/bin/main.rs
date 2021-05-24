@@ -102,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Find the best results in all courses that someone of the given age class participated in
     let courses: Vec<(u64, String)> = results
         .iter()
-        .map(|result| (result.event_id, result.category_name.to_string()))
+        .map(|result| (result.event_id, result.category_name.to_owned()))
         .unique()
         .collect();
     let mut stmt = conn.prepare(
@@ -121,13 +121,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fastest_times.insert((event_id, category_name), total_seconds(fastest_time));
     }
 
-    for mut result in results {
-        result.score = 1000
-            * fastest_times
-                .get(&(result.event_id, result.category_name.to_string()))
-                .unwrap()
-            / total_seconds(result.time);
-        dbg!(result);
+    let mut results: Vec<Performance> = results
+        .into_iter()
+        .map(|result| {
+            let score = 1000
+                * fastest_times
+                    .get(&(result.event_id, result.category_name.to_owned()))
+                    .unwrap()
+                / total_seconds(result.time);
+            Performance { score, ..result }
+        })
+        .collect();
+
+    results.sort_by_key(|result| format!("{}-{}", result.name, result.event_id));
+    for (name, runner_results) in &results
+        .into_iter()
+        .group_by(|result| result.name.to_owned())
+    {
+        let runner_results: Vec<Performance> = runner_results.collect();
+        let mut scores: Vec<u32> = runner_results
+            .as_slice()
+            .into_iter()
+            .map(|result| result.score)
+            .collect();
+        scores.sort();
+        scores.reverse();
+        let total_score: u32 = scores.as_slice().into_iter().take(4).sum();
+        dbg!(name, total_score, scores);
     }
 
     // create intermediate rankings to show result evolution
