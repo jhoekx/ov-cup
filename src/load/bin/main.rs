@@ -142,7 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             params![event_db_id],
         )?;
 
-        for (_, category) in &event.categories {
+        for category in event.categories.values() {
             for result in &category.results {
                 if result.status != "OK" || result.position == 0 {
                     continue;

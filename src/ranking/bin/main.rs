@@ -117,10 +117,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut fastest_times = HashMap::new();
     for (event_id, category_name) in courses {
         let fastest_time: NaiveTime =
-            stmt.query_row(params![event_id, category_name], |row| Ok(row.get(0)?))?;
+            stmt.query_row(params![event_id, category_name], |row| row.get(0))?;
         fastest_times.insert((event_id, category_name), total_seconds(fastest_time));
     }
 
+    // Calculate score for each performance based on the fastest times
     let mut results: Vec<Performance> = results
         .into_iter()
         .map(|result| {
@@ -133,6 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
+    // Calculate the total scores per runner
     results.sort_by_key(|result| format!("{}-{}", result.name, result.event_id));
     for (name, runner_results) in &results
         .into_iter()
@@ -140,13 +142,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let runner_results: Vec<Performance> = runner_results.collect();
         let mut scores: Vec<u32> = runner_results
-            .as_slice()
-            .into_iter()
+            .iter()
             .map(|result| result.score)
             .collect();
-        scores.sort();
+        scores.sort_unstable();
         scores.reverse();
-        let total_score: u32 = scores.as_slice().into_iter().take(4).sum();
+        let total_score: u32 = scores.iter().take(4).sum();
         dbg!(name, total_score, scores);
     }
 
