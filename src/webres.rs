@@ -2,6 +2,7 @@ use std::{collections::HashMap, fmt::Display, fs::File, io::BufReader, str::From
 
 use chrono::{DateTime, NaiveTime, Utc};
 use serde::{Deserialize, Deserializer};
+use thiserror::Error;
 
 #[derive(Debug, Deserialize)]
 pub struct CourseResult {
@@ -43,9 +44,27 @@ where
     T::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-pub fn read_event_json(path: String) -> Result<Event, Box<dyn std::error::Error>> {
-    let file = File::open(path)?;
+#[derive(Error, Debug)]
+pub enum WebresError {
+    #[error("unable to read json file {path:?}")]
+    FileRead {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("invalid json in {path:?}")]
+    InvalidJSON {
+        path: String,
+        #[source]
+        source: serde_json::Error,
+    },
+}
+
+pub fn read_event_json(path: String) -> Result<Event, WebresError> {
+    let file = File::open(&path).map_err(|source| WebresError::FileRead {
+        path: path.to_owned(),
+        source,
+    })?;
     let reader = BufReader::new(file);
-    let event: Event = serde_json::from_reader(reader)?;
-    Ok(event)
+    serde_json::from_reader(reader).map_err(|source| WebresError::InvalidJSON { path, source })
 }
