@@ -1,0 +1,46 @@
+[package]
+name = "ov-cup"
+version = "0.1.0"
+authors = ["Jeroen Hoekx <jeroen@hoekx.be>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "download"
+path = "src/download/bin/main.rs"
+
+[[bin]]
+name = "load"
+path = "src/load/bin/main.rs"
+
+[[bin]]
+name = "ranking"
+path = "src/ranking/bin/main.rs"
+
+[dependencies]
+
+[dependencies.reqwest]
+version = "0.11"
+features = ["blocking", "json"]
+
+[dependencies.url]
+version = "2.2"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]
+
+[dependencies.rusqlite]
+version = "0.25"
+features = ["bundled", "chrono"]
+
+[dependencies.itertools]
+version = "0.10"
