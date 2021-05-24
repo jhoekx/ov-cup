@@ -74,9 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
               from Runner join Result on Runner.id = Result.Runner_id
               where Result.age_class = ?
           )
+        order by Runner.name asc, Event.date asc
     ",
     )?;
-    let results: Vec<Performance> = stmt
+    let all_results: Vec<Performance> = stmt
         .query_map(params![opt.cup, opt.season, opt.age_class], |row| {
             Ok(Performance {
                 name: row.get(0)?,
@@ -95,9 +96,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // TODO: Keep only courses that are valid for the age class of the result
 
-    // TODO: Keep only results of runners where the last age class equals the given age class
-    //       This filters out runners who moved to a different category,
-    //       while keeping the runners that moved into this category.
+    // Keep only results of runners where the last age class equals the given age class
+    // This filters out runners who moved to a different category,
+    // while keeping the runners that moved into this category.
+    let mut results = Vec::new();
+    for (_, runner_results) in &all_results
+        .into_iter()
+        .group_by(|result| result.name.to_owned())
+    {
+        let mut runner_results: Vec<Performance> = runner_results.collect();
+        if runner_results.last().unwrap().age_class == opt.age_class {
+            results.append(&mut runner_results);
+        }
+    }
 
     // Find the best results in all courses that someone of the given age class participated in
     let courses: Vec<(u64, String)> = results
@@ -122,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Calculate score for each performance based on the fastest times
-    let mut results: Vec<Performance> = results
+    let results: Vec<Performance> = results
         .into_iter()
         .map(|result| {
             let score = 1000
@@ -135,16 +146,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // Calculate the total scores per runner
-    results.sort_by_key(|result| format!("{}-{}", result.name, result.event_id));
     for (name, runner_results) in &results
         .into_iter()
         .group_by(|result| result.name.to_owned())
     {
         let runner_results: Vec<Performance> = runner_results.collect();
-        let mut scores: Vec<u32> = runner_results
-            .iter()
-            .map(|result| result.score)
-            .collect();
+        let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
         scores.sort_unstable();
         scores.reverse();
         let total_score: u32 = scores.iter().take(4).sum();
