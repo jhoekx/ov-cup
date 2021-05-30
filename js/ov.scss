@@ -1,0 +1,20 @@
+$ov-primary: #05386b;
+$ov-secondary: #5cdb95;
+
+$primary: $ov-primary;
+$secondary: $ov-secondary;
+
+$navbar-light-active-color: $primary;
+
+$card-cap-bg: $ov-secondary;
+$card-cap-color: $ov-primary;
+
+$enable-rounded: true;
+$enable-shadows: true;
+$enable-gradients: true;
+
+@import "~bootstrap/scss/bootstrap";
+
+.ov-past-event {
+    opacity: 0.5;
+}
