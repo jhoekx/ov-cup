@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="627.58777"
+   width="582.31152"
    height="203.82755"
-   viewBox="0 0 166.04927 53.929371"
+   viewBox="0 0 154.06993 53.929371"
    version="1.1"
    id="svg5"
    inkscape:version="1.1 (c4e8f9ed74, 2021-05-24)"
@@ -32,7 +32,7 @@
      fit-margin-right="0"
      fit-margin-bottom="0"
      inkscape:zoom="1.0289025"
-     inkscape:cx="274.5644"
+     inkscape:cx="228.88466"
      inkscape:cy="328.99133"
      inkscape:window-width="1548"
      inkscape:window-height="1088"
@@ -43,7 +43,7 @@
     <inkscape:grid
        type="xygrid"
        id="grid68747"
-       originx="-16.585757"
+       originx="-28.565094"
        originy="0.24394633" />
   </sodipodi:namedview>
   <defs
@@ -105,25 +105,15 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-16.585758,0.24394634)">
+     transform="translate(-28.565094,0.24394634)">
     <path
        style="fill:#5cdb95;fill-opacity:1;stroke:#05386b;stroke-width:1.21528;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        d="M 171.79406,0.96234977 156.9486,28.531673 l 6.82528,0.126476 -12.97671,23.942664 v 0 l 12.37118,-3.025981 8.27344,3.46102 10.58554,-3.617465 -0.004,-32.183348 z"
        id="path69719"
        sodipodi:nodetypes="cccccccccc" />
-    <text
-       xml:space="preserve"
-       transform="matrix(0.49335996,0,0,0.83072036,13.832771,-205.74536)"
-       id="text144535"
-       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect144537);fill:#000000;fill-opacity:1;stroke:none"><tspan
-         x="1.9082031"
-         y="311.49609"
-         id="tspan92"><tspan
-           style="font-weight:bold;-inkscape-font-specification:'sans-serif Bold'"
-           id="tspan90">FOREST CUP</tspan></tspan></text>
     <g
        id="g165247"
-       transform="matrix(0.07106072,0,0,0.07106072,62.011539,2.9824115)">
+       transform="matrix(0.07106072,0,0,0.07106072,28.56012,28.932197)">
       <path
          class="cls-1"
          d="m 241.87,45 v 0 H 45.07 C 45,158.14 45,129.87 44.94,243 l 198,-0.07 V 45.02 Z M 253.68,0 h 0.11 C 272.9,0.15 287.24,14 288,33.12 v 222.54 c -0.3,15.45 -12.05,28.91 -27.73,31.76 -4.16,0.75 9,0.66 -91.92,0.62 -77.81,0 -58.35,0 -136.17,-0.1 -18,-1 -31.22,-14.69 -32.11,-33.22 l 0.05,-222 C 1.15,13.21 15.85,-0.27 35.7,0 47.3,0.17 236.75,0.16 253.68,0 Z"
@@ -221,5 +211,16 @@
          d="m 1260.14,77.56 v 0 l -1.59,2.25 c -3,-1.66 -2.27,-1.25 -5.31,-2.89 a 22,22 0 0 0 -26.58,4.1 c -6.93,7.28 -8.59,19.78 -3.85,28.94 4.87,9.42 13.92,13.72 24.54,11.66 l 3.22,-0.62 c -0.11,-18.87 -0.26,-16.35 1,-17.66 0.79,-0.7 -1.64,-0.61 17,-0.6 2.52,0.24 3.45,1.43 3.45,4.42 0,31.41 0.08,27.36 -0.8,28.41 -3.24,3.57 -15.79,7.48 -25.43,7.91 -13.41,0.6 -24.07,-2.91 -33.53,-11 a 44.59,44.59 0 0 1 -6.49,-61.19 c 14.49,-19.15 41.61,-24.22 61.52,-11.49 l 3.33,2.91 z"
          id="path165217" />
     </g>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:25.5356px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.638392"
+       x="27.059839"
+       y="23.298206"
+       id="text3502"><tspan
+         sodipodi:role="line"
+         id="tspan3500"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-family:'Nimbus Sans Narrow';-inkscape-font-specification:'Nimbus Sans Narrow Bold Semi-Condensed';stroke-width:0.638392"
+         x="27.059839"
+         y="23.298206">FOREST CUP</tspan></text>
   </g>
 </svg>
