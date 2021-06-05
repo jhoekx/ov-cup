@@ -1,7 +1,8 @@
 
 module.exports = {
     entry: {
-        lib: './js/lib.js'
+        lib: './js/lib.js',
+        style: './scss/ov.js'
     },
     module: {
         rules: [
