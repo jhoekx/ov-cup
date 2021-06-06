@@ -1,4 +1,5 @@
 /target
+cgi-bin/
 data/
 dist/
 node_modules/

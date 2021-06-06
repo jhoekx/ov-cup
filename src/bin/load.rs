@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2021 Jeroen Hoekx
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use structopt::StructOpt;
 
 use ov_cup::cli;

@@ -1,8 +1,12 @@
+// SPDX-FileCopyrightText: 2021 Jeroen Hoekx
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use std::collections::HashMap;
 
 use chrono::{DateTime, NaiveTime, Timelike, Utc};
 use itertools::Itertools;
 use rusqlite::{params, Connection};
+use serde::Serialize;
 
 pub mod cli;
 pub mod webres;
@@ -126,6 +130,7 @@ struct Performance {
     event_date: DateTime<Utc>,
     age_class: String,
     category_name: String,
+    position: u32,
     time: NaiveTime,
     score: u32,
 }
@@ -134,12 +139,37 @@ fn total_seconds(time: impl Timelike) -> u32 {
     time.second() + time.minute() * 60 + time.hour() * 60 * 60
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct RankingScore {
+    event_id: u64,
+    score: Option<u32>,
+    place: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RankingEntry {
+    name: String,
+    total_score: u32,
+    scores: Vec<RankingScore>,
+}
+
 pub fn calculate_ranking(
     cup: String,
     season: String,
     age_class: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<Vec<RankingEntry>, Box<dyn std::error::Error>> {
     let conn = Connection::open("ov.sqlite")?;
+
+    // Find all events
+    let mut stmt =
+        conn.prepare("select id from Event where cup = ? and season = ? order by date asc")?;
+    let events: Vec<u64> = stmt
+        .query_map(params![cup, season], |row| {
+            let event_id = row.get(0)?;
+            Ok(event_id)
+        })?
+        .filter_map(|event_id| event_id.ok())
+        .collect();
 
     // Find all results of all runners with at least one ranking in the given category
     let mut stmt = conn.prepare(
@@ -152,6 +182,7 @@ pub fn calculate_ranking(
             Event.date,
             Result.age_class,
             Result.category_name,
+            Result.position,
             Result.time
         from Result join Runner on Result.runner_id = Runner.id
                     join Event on Result.event_id = Event.id
@@ -166,15 +197,17 @@ pub fn calculate_ranking(
     )?;
     let all_results: Vec<Performance> = stmt
         .query_map(params![cup, season, age_class], |row| {
+            let event_id = row.get(2)?;
             Ok(Performance {
                 name: row.get(0)?,
                 club: row.get(1)?,
-                event_id: row.get(2)?,
+                event_id,
                 event_name: row.get(3)?,
                 event_date: row.get(4)?,
                 age_class: row.get(5)?,
                 category_name: row.get(6)?,
-                time: row.get(7)?,
+                position: row.get(7)?,
+                time: row.get(8)?,
                 score: 0,
             })
         })?
@@ -233,6 +266,7 @@ pub fn calculate_ranking(
         .collect();
 
     // Calculate the total scores per runner
+    let mut ranking: Vec<RankingEntry> = Vec::new();
     for (name, runner_results) in &results
         .into_iter()
         .group_by(|result| result.name.to_owned())
@@ -242,8 +276,36 @@ pub fn calculate_ranking(
         scores.sort_unstable();
         scores.reverse();
         let total_score: u32 = scores.iter().take(4).sum();
-        dbg!(name, total_score, scores);
-    }
 
-    Ok(())
+        let ranking_scores: Vec<RankingScore> = runner_results
+            .iter()
+            .map(|performance| RankingScore {
+                event_id: performance.event_id,
+                score: Some(performance.score),
+                place: Some(performance.position),
+            })
+            .collect();
+
+        ranking.push(RankingEntry {
+            name,
+            total_score,
+            scores: events
+                .iter()
+                .map(|&event_id| {
+                    ranking_scores
+                        .iter()
+                        .find(|&score| score.event_id == event_id)
+                        .copied()
+                        .unwrap_or(RankingScore {
+                            event_id,
+                            score: None,
+                            place: None,
+                        })
+                })
+                .collect(),
+        })
+    }
+    ranking.sort_by_key(|entry| entry.total_score);
+    ranking.reverse();
+    Ok(ranking)
 }

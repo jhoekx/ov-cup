@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2021 Jeroen Hoekx
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::{collections::HashMap, fmt::Display, fs::File, io::BufReader, str::FromStr};
 
 use chrono::{DateTime, NaiveTime, Utc};
