@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::path::Path;
+
 use structopt::StructOpt;
 
 use ov_cup::cli;
@@ -21,11 +23,12 @@ struct Opt {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
+    let db_path = Path::new("ov.sqlite");
 
-    ov_cup::create_database()?;
+    ov_cup::create_database(db_path)?;
     for path in opt.paths {
         let event = webres::read_event_json(path)?;
-        ov_cup::store_event(opt.cup.to_owned(), opt.season.to_owned(), event)?;
+        ov_cup::store_event(db_path, opt.cup.to_owned(), opt.season.to_owned(), event)?;
     }
 
     Ok(())

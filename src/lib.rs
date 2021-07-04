@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use chrono::{DateTime, NaiveTime, Timelike, Utc};
 use itertools::Itertools;
@@ -11,8 +11,8 @@ use serde::Serialize;
 pub mod cli;
 pub mod webres;
 
-pub fn create_database() -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Connection::open("ov.sqlite")?;
+pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let conn = Connection::open(db_path)?;
     conn.pragma_update(None, "foreign_keys", &"on")?;
     conn.pragma_update(None, "journal_mode", &"WAL")?;
     conn.execute_batch(
@@ -54,11 +54,12 @@ pub fn create_database() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn store_event(
+    db_path: &Path,
     cup: String,
     season: String,
     event: webres::Event,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Connection::open("ov.sqlite")?;
+    let conn = Connection::open(db_path)?;
     conn.execute(
         "
         insert into Event (cup, season, name, location, date) values (?, ?, ?, ?, ?)
@@ -157,11 +158,12 @@ pub struct RankingEntry {
 }
 
 pub fn calculate_ranking(
+    db_path: &Path,
     cup: String,
     season: String,
     age_class: String,
 ) -> Result<Vec<RankingEntry>, Box<dyn std::error::Error>> {
-    let conn = Connection::open("ov.sqlite")?;
+    let conn = Connection::open(db_path)?;
 
     // Find all events
     let mut stmt =

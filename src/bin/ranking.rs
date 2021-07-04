@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::path::Path;
+
 use structopt::StructOpt;
 
 use ov_cup::calculate_ranking;
@@ -21,7 +23,7 @@ struct Opt {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
-    let ranking = calculate_ranking(opt.cup, opt.season, opt.age_class)?;
+    let ranking = calculate_ranking(Path::new("ov.sqlite"), opt.cup, opt.season, opt.age_class)?;
     dbg!(ranking);
     Ok(())
 }
