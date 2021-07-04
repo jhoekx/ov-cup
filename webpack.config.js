@@ -1,7 +1,7 @@
 
 module.exports = {
     entry: {
-        lib: './js/lib.js',
+        lib: './js/lib.jsx',
         style: './scss/ov.js'
     },
     module: {
@@ -13,6 +13,12 @@ module.exports = {
             {
                 test: /\.scss$/,
                 use: ['style-loader', 'css-loader', 'sass-loader']
+            },
+            {
+                test: /\.(js|jsx)$/,
+                exclude: /node_modules/,
+                loader: 'babel-loader',
+                options: { presets: ['@babel/env'] },
             },
         ]
     }
