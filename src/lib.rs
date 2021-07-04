@@ -141,6 +141,7 @@ fn total_seconds(time: impl Timelike) -> u32 {
 
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct RankingScore {
+    #[serde(rename = "eventId")]
     event_id: u64,
     score: Option<u32>,
     place: Option<u32>,
@@ -149,6 +150,8 @@ pub struct RankingScore {
 #[derive(Debug, Serialize)]
 pub struct RankingEntry {
     name: String,
+    club: String,
+    #[serde(rename = "totalScore")]
     total_score: u32,
     scores: Vec<RankingScore>,
 }
@@ -288,6 +291,9 @@ pub fn calculate_ranking(
 
         ranking.push(RankingEntry {
             name,
+            club: runner_results
+                .last()
+                .map_or("".to_owned(), |performance| performance.club.to_string()),
             total_score,
             scores: events
                 .iter()
