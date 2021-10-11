@@ -127,7 +127,7 @@ const Ranking = ({ categories }) => {
     }
     const url = new URL('./cgi-bin/cup-cgi', window.location);
     url.searchParams.set('cup', 'forest-cup');
-    url.searchParams.set('season', '2020');
+    url.searchParams.set('season', '2022');
     url.searchParams.set('ageClass', selectedCategory);
 
     fetch(url).then((response) => response.json()).then(generateRanking);
