@@ -11,6 +11,8 @@ use serde::Serialize;
 pub mod cli;
 pub mod webres;
 
+const CLUBS: &[&str] = &["Antwerp Orienteers", "hamok", "K.O.L.", "Omega", "Trol"];
+
 pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
     conn.pragma_update(None, "foreign_keys", &"on")?;
@@ -87,12 +89,22 @@ pub fn store_event(
                 continue;
             }
 
+            let mut club = result.club.to_string();
+            for existing_club in CLUBS {
+                if club
+                    .to_lowercase()
+                    .starts_with(&existing_club.to_lowercase())
+                {
+                    club = existing_club.to_string();
+                }
+            }
+
             conn.execute(
                 "
                 insert into Runner (name, club) values (?, ?)
                 on conflict (name) do update set club = excluded.club;
             ",
-                params![result.name, result.club],
+                params![result.name, club],
             )?;
             let runner_db_id: i64 = conn.query_row(
                 "
@@ -200,7 +212,7 @@ pub fn calculate_ranking(
         order by Runner.name asc, Event.date asc
     ",
     )?;
-    let all_results: Vec<Performance> = stmt
+    let all_results = stmt
         .query_map(params![cup, season, age_class], |row| {
             let event_id = row.get(2)?;
             Ok(Performance {
@@ -216,8 +228,7 @@ pub fn calculate_ranking(
                 score: 0,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .filter_map(|r| r.ok());
 
     // TODO: Keep only courses that are valid for the age class of the result
 
@@ -258,7 +269,7 @@ pub fn calculate_ranking(
     }
 
     // Calculate score for each performance based on the fastest times
-    let results: Vec<Performance> = results
+    let results = results
         .into_iter()
         .map(|result| {
             let score = 1000
@@ -267,8 +278,7 @@ pub fn calculate_ranking(
                     .unwrap()
                 / total_seconds(result.time);
             Performance { score, ..result }
-        })
-        .collect();
+        });
 
     // Calculate the total scores per runner
     let mut ranking: Vec<RankingEntry> = Vec::new();
