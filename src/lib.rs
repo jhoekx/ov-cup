@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, path::Path};
+use std::{array::IntoIter, collections::HashMap, path::Path};
+
+#[macro_use]
+extern crate lazy_static;
 
 use chrono::{DateTime, NaiveTime, Timelike, Utc};
 use itertools::Itertools;
@@ -12,6 +15,51 @@ pub mod cli;
 pub mod webres;
 
 const CLUBS: &[&str] = &["Antwerp Orienteers", "hamok", "K.O.L.", "Omega", "Trol"];
+
+lazy_static! {
+    static ref COURSES: HashMap<&'static str, i32> = {
+        HashMap::<_, _>::from_iter(IntoIter::new([
+            ("H-20", 1),
+            ("H21", 1),
+            ("H35", 1),
+            ("H-18", 2),
+            ("H40", 2),
+            ("H45", 2),
+            ("H50", 2),
+            ("D-20", 2),
+            ("D21", 2),
+            ("H-16", 3),
+            ("H55", 3),
+            ("H60", 3),
+            ("D-16", 3),
+            ("D-18", 3),
+            ("D35", 3),
+            ("D40", 3),
+            ("D45", 3),
+            ("H-14", 4),
+            ("H65", 4),
+            ("D-14", 4),
+            ("D50", 4),
+            ("D55", 4),
+            ("H-10", 8),
+            ("H-12", 8),
+            ("H70", 5),
+            ("H75", 5),
+            ("H80", 5),
+            ("H85", 5),
+            ("H90", 5),
+            ("D-10", 8),
+            ("D-12", 8),
+            ("D60", 5),
+            ("D65", 5),
+            ("D70", 5),
+            ("D75", 5),
+            ("D80", 5),
+            ("D85", 5),
+            ("D90", 5),
+        ]))
+    };
+}
 
 pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
@@ -83,9 +131,29 @@ pub fn store_event(
         params![event_db_id],
     )?;
 
+    let category_re = regex::Regex::new(r"[H|D]:\d*(\d)$").unwrap();
     for category in event.categories.values() {
+        let course_number = match category_re
+            .captures_iter(&category.name)
+            .next()
+            .map(|g| g.get(1).unwrap().as_str().parse().unwrap())
+        {
+            Some(course_number) => course_number,
+            None => {
+                eprintln!("Skipping course {}", category.name);
+                continue;
+            }
+        };
         for result in &category.results {
             if result.status != "OK" || result.position == 0 {
+                continue;
+            }
+
+            if COURSES[&result.age_class as &str] < course_number {
+                eprintln!(
+                    "{} {} is running in incorrect course {}, should run {}",
+                    result.name, result.age_class, course_number, COURSES[&result.age_class as &str]
+                );
                 continue;
             }
 
@@ -269,16 +337,14 @@ pub fn calculate_ranking(
     }
 
     // Calculate score for each performance based on the fastest times
-    let results = results
-        .into_iter()
-        .map(|result| {
-            let score = 1000
-                * fastest_times
-                    .get(&(result.event_id, result.category_name.to_owned()))
-                    .unwrap()
-                / total_seconds(result.time);
-            Performance { score, ..result }
-        });
+    let results = results.into_iter().map(|result| {
+        let score = 1000
+            * fastest_times
+                .get(&(result.event_id, result.category_name.to_owned()))
+                .unwrap()
+            / total_seconds(result.time);
+        Performance { score, ..result }
+    });
 
     // Calculate the total scores per runner
     let mut ranking: Vec<RankingEntry> = Vec::new();
