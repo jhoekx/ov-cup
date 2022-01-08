@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{collections::HashMap, fmt::Display, fs::File, io::BufReader, str::FromStr};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    fs::File,
+    io::BufReader,
+    str::FromStr,
+};
 
 use chrono::{DateTime, NaiveTime, Utc};
 use serde::{Deserialize, Deserializer};
@@ -12,7 +18,7 @@ pub struct CourseResult {
     pub name: String,
     pub club: String,
     #[serde(rename = "ageclass")]
-    pub age_class: String,
+    pub age_class: Option<String>,
     #[serde(deserialize_with = "from_str")]
     pub position: u32,
     pub time: NaiveTime,
@@ -37,14 +43,23 @@ pub struct Event {
     pub categories: HashMap<String, Category>,
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DataType<T> {
+    String(String),
+    Number(T),
+}
+
 fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
-    T: FromStr,
+    T: FromStr + Deserialize<'de> + Debug,
     T::Err: Display,
     D: Deserializer<'de>,
 {
-    let s = String::deserialize(deserializer)?;
-    T::from_str(&s).map_err(serde::de::Error::custom)
+    match DataType::<T>::deserialize(deserializer)? {
+        DataType::String(s) => T::from_str(&s).map_err(serde::de::Error::custom),
+        DataType::Number(n) => Ok(n),
+    }
 }
 
 #[derive(Error, Debug)]

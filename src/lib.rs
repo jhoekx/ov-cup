@@ -6,7 +6,7 @@ use std::{array::IntoIter, collections::HashMap, path::Path};
 #[macro_use]
 extern crate lazy_static;
 
-use chrono::{DateTime, NaiveTime, Timelike, Utc};
+use chrono::{NaiveTime, Timelike};
 use itertools::Itertools;
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -41,6 +41,7 @@ lazy_static! {
             ("D-14", 4),
             ("D50", 4),
             ("D55", 4),
+            ("H10B", 8),
             ("H-10", 8),
             ("H-12", 8),
             ("H70", 5),
@@ -48,6 +49,7 @@ lazy_static! {
             ("H80", 5),
             ("H85", 5),
             ("H90", 5),
+            ("D10B", 8),
             ("D-10", 8),
             ("D-12", 8),
             ("D60", 5),
@@ -110,6 +112,23 @@ pub fn store_event(
     event: webres::Event,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
+
+    let event_db_id = prepare_event(&conn, &cup, season, &event)?;
+    if cup == "kampioen" {
+        store_event_by_class(conn, event, event_db_id)?;
+    } else {
+        store_event_by_course(conn, event, event_db_id)?;
+    }
+
+    Ok(())
+}
+
+fn prepare_event(
+    conn: &Connection,
+    cup: &str,
+    season: String,
+    event: &webres::Event,
+) -> Result<i64, Box<dyn std::error::Error>> {
     conn.execute(
         "
         insert into Event (cup, season, name, location, date) values (?, ?, ?, ?, ?)
@@ -130,7 +149,75 @@ pub fn store_event(
     ",
         params![event_db_id],
     )?;
+    Ok(event_db_id)
+}
 
+fn store_event_by_class(
+    conn: Connection,
+    event: webres::Event,
+    event_db_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for category in event.categories.values() {
+        if !COURSES.contains_key(&category.name as &str) {
+            eprintln!("Skipping class {}", category.name);
+            continue;
+        }
+
+        for result in &category.results {
+            if result.status != "OK" || result.position == 0 {
+                continue;
+            }
+
+            let mut club = result.club.to_string();
+            for existing_club in CLUBS {
+                if club
+                    .to_lowercase()
+                    .starts_with(&existing_club.to_lowercase())
+                {
+                    club = existing_club.to_string();
+                }
+            }
+
+            conn.execute(
+                "
+                insert into Runner (name, club) values (?, ?)
+                on conflict (name) do update set club = excluded.club;
+            ",
+                params![result.name, club],
+            )?;
+            let runner_db_id: i64 = conn.query_row(
+                "
+                select id from Runner where name = ?
+            ",
+                params![result.name],
+                |row| row.get(0),
+            )?;
+
+            conn.execute(
+                "
+                insert into Result (event_id, runner_id, category_name, age_class, position, time)
+                values (?, ?, ?, ?, ?, ?)
+            ",
+                params![
+                    event_db_id,
+                    runner_db_id,
+                    category.name,
+                    &category.name,
+                    result.position,
+                    result.time
+                ],
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
+fn store_event_by_course(
+    conn: Connection,
+    event: webres::Event,
+    event_db_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
     let category_re = regex::Regex::new(r"[H|D]:\d*(\d)$").unwrap();
     for category in event.categories.values() {
         let course_number = match category_re
@@ -144,15 +231,17 @@ pub fn store_event(
                 continue;
             }
         };
+
         for result in &category.results {
             if result.status != "OK" || result.position == 0 {
                 continue;
             }
+            let age_class = result.age_class.as_ref().unwrap();
 
-            if COURSES[&result.age_class as &str] < course_number {
+            if COURSES[age_class as &str] < course_number {
                 eprintln!(
                     "{} {} is running in incorrect course {}, should run {}",
-                    result.name, result.age_class, course_number, COURSES[&result.age_class as &str]
+                    result.name, age_class, course_number, COURSES[age_class as &str]
                 );
                 continue;
             }
@@ -191,7 +280,7 @@ pub fn store_event(
                     event_db_id,
                     runner_db_id,
                     category.name,
-                    result.age_class,
+                    age_class,
                     result.position,
                     result.time
                 ],
@@ -207,8 +296,6 @@ struct Performance {
     name: String,
     club: String,
     event_id: u64,
-    event_name: String,
-    event_date: DateTime<Utc>,
     age_class: String,
     category_name: String,
     position: u32,
@@ -263,8 +350,6 @@ pub fn calculate_ranking(
             Runner.name,
             Runner.club,
             Event.id,
-            Event.name,
-            Event.date,
             Result.age_class,
             Result.category_name,
             Result.position,
@@ -287,12 +372,10 @@ pub fn calculate_ranking(
                 name: row.get(0)?,
                 club: row.get(1)?,
                 event_id,
-                event_name: row.get(3)?,
-                event_date: row.get(4)?,
-                age_class: row.get(5)?,
-                category_name: row.get(6)?,
-                position: row.get(7)?,
-                time: row.get(8)?,
+                age_class: row.get(3)?,
+                category_name: row.get(4)?,
+                position: row.get(5)?,
+                time: row.get(6)?,
                 score: 0,
             })
         })?

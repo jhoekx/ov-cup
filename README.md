@@ -1,6 +1,6 @@
-# Orienteering Vlaanderen Forest Cup and City Cup
+# Orienteering Vlaanderen Rankings
 
-This repository contains the CGI program and web page to generate the Forest Cup and City Cup rankings.
+This repository contains the CGI program and web page to generate the Forest Cup, City Cup and Kampioen rankings.
 
 ## Populating the database
 
@@ -29,6 +29,12 @@ $ mkdir cgi-bin
 $ cargo build --release --bin cup-cgi
 $ cp target/release/cup-cgi cgi-bin/
 $ SCRIPT_FILENAME=cgi-bin/cup-cgi python -m http.server --cgi
+```
+
+## Release
+
+```bash
+$ rsync -rv *.html favicon.ico ov.sqlite dist images cgi-bin mole.hoekx.be:/srv/http/rankings.orienteering.vlaanderen/
 ```
 
 ## Development

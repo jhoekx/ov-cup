@@ -98,8 +98,9 @@ RankingEntry.propTypes = {
   }).isRequired,
 };
 
-const Ranking = ({ categories }) => {
+const Ranking = ({ categories, cup, season }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [isLoading, setLoading] = useState(false);
   const [ranking, setRanking] = useState([]);
 
   const generateRanking = (data) => {
@@ -125,12 +126,16 @@ const Ranking = ({ categories }) => {
       setRanking([]);
       return;
     }
+    setLoading(true);
     const url = new URL('./cgi-bin/cup-cgi', window.location);
-    url.searchParams.set('cup', 'forest-cup');
-    url.searchParams.set('season', '2022');
+    url.searchParams.set('cup', cup);
+    url.searchParams.set('season', season);
     url.searchParams.set('ageClass', selectedCategory);
 
-    fetch(url).then((response) => response.json()).then(generateRanking);
+    fetch(url)
+      .then((response) => response.json())
+      .then((data) => { setLoading(false); return data; })
+      .then(generateRanking);
   }, [selectedCategory]);
 
   return (
@@ -141,12 +146,31 @@ const Ranking = ({ categories }) => {
         onChange={setSelectedCategory}
       />
       {ranking.map((entry) => <RankingEntry key={`${entry.name}${entry.club}`} entry={entry} />)}
+      {isLoading && (
+        <div className="text-center">
+          <div className="spinner-border" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      )}
+      {selectedCategory
+        && !isLoading
+        && ranking.length === 0
+        && (
+          <div className="alert alert-info">
+            Geen resultaten voor
+            {` ${selectedCategory}`}
+            .
+          </div>
+        )}
     </>
   );
 };
 
 Ranking.propTypes = {
   categories: PropTypes.arrayOf(PropTypes.string).isRequired,
+  cup: PropTypes.string.isRequired,
+  season: PropTypes.string.isRequired,
 };
 
 const categories = [];
@@ -155,4 +179,13 @@ document.querySelectorAll('#ranking span').forEach((category) => {
 });
 
 const rankingContainer = document.getElementById('ranking');
-render(<Ranking categories={categories} />, rankingContainer);
+if (rankingContainer) {
+  render(
+    <Ranking
+      categories={categories}
+      cup={rankingContainer.dataset.cup}
+      season={rankingContainer.dataset.season}
+    />,
+    rankingContainer,
+  );
+}
