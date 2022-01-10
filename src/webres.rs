@@ -21,7 +21,7 @@ pub struct CourseResult {
     pub age_class: Option<String>,
     #[serde(deserialize_with = "from_str")]
     pub position: u32,
-    pub time: NaiveTime,
+    pub time: Option<NaiveTime>,
     pub status: String,
 }
 

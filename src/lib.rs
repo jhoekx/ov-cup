@@ -14,7 +14,14 @@ use serde::Serialize;
 pub mod cli;
 pub mod webres;
 
-const CLUBS: &[&str] = &["Antwerp Orienteers", "hamok", "K.O.L.", "Omega", "Trol"];
+const CLUBS: &[&str] = &[
+    "Antwerp Orienteers",
+    "Borasca",
+    "hamok",
+    "K.O.L.",
+    "Omega",
+    "Trol",
+];
 
 lazy_static! {
     static ref COURSES: HashMap<&'static str, i32> = {
@@ -168,14 +175,10 @@ fn store_event_by_class(
                 continue;
             }
 
-            let mut club = result.club.to_string();
-            for existing_club in CLUBS {
-                if club
-                    .to_lowercase()
-                    .starts_with(&existing_club.to_lowercase())
-                {
-                    club = existing_club.to_string();
-                }
+            let club = result.club.to_string();
+            if !is_ov_club(&club) {
+                eprintln!("Skipping club {}", club);
+                continue;
             }
 
             conn.execute(
@@ -211,6 +214,18 @@ fn store_event_by_class(
     }
 
     Ok(())
+}
+
+fn is_ov_club(club: &str) -> bool {
+    for existing_club in CLUBS {
+        if club
+            .to_lowercase()
+            .starts_with(&existing_club.to_lowercase())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn store_event_by_course(
