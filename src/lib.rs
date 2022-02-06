@@ -23,6 +23,29 @@ const CLUBS: &[&str] = &[
     "Trol",
 ];
 
+const CLASSES: &[&str] = &[
+    "H. Pupilles",
+    "D. Pupilles",
+    "H. Espoirs - Beloften",
+    "D. Espoirs - Beloften",
+    "H. Junioren - Juniors",
+    "D. Junioren - Juniores",
+    "H. Open",
+    "D. Open",
+    "H. Masters A",
+    "D. Masters A",
+    "H. Masters B",
+    "D. Masters B",
+    "H. Masters C",
+    "D. Masters C",
+    "H. Masters D",
+    "D. Masters D",
+    "H. Masters E",
+    "D. Masters E",
+    "H. Masters F",
+    "D. Masters F",
+];
+
 lazy_static! {
     static ref COURSES: HashMap<&'static str, i32> = {
         HashMap::<_, _>::from_iter(IntoIter::new([
@@ -165,7 +188,9 @@ fn store_event_by_class(
     event_db_id: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for category in event.categories.values() {
-        if !COURSES.contains_key(&category.name as &str) {
+        if !COURSES.contains_key(&category.name as &str)
+            && !CLASSES.contains(&(&category.name as &str))
+        {
             eprintln!("Skipping class {}", category.name);
             continue;
         }
@@ -196,6 +221,12 @@ fn store_event_by_class(
                 |row| row.get(0),
             )?;
 
+            let age_class = if CLASSES.contains(&(&category.name as &str)) {
+                result.age_class.as_ref().unwrap()
+            } else {
+                &category.name
+            };
+
             conn.execute(
                 "
                 insert into Result (event_id, runner_id, category_name, age_class, position, time)
@@ -204,8 +235,8 @@ fn store_event_by_class(
                 params![
                     event_db_id,
                     runner_db_id,
-                    category.name,
                     &category.name,
+                    age_class,
                     result.position,
                     result.time
                 ],
