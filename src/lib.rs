@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{array::IntoIter, collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path};
 
 #[macro_use]
 extern crate lazy_static;
@@ -48,7 +48,7 @@ const CLASSES: &[&str] = &[
 
 lazy_static! {
     static ref COURSES: HashMap<&'static str, i32> = {
-        HashMap::<_, _>::from_iter(IntoIter::new([
+        HashMap::<_, _>::from_iter(IntoIterator::into_iter([
             ("H-20", 1),
             ("H21", 1),
             ("H35", 1),
@@ -485,7 +485,7 @@ pub fn calculate_ranking(
         let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
         scores.sort_unstable();
         scores.reverse();
-        let total_score: u32 = scores.iter().take(4).sum();
+        let total_score: u32 = scores.iter().take(3).sum();
 
         let ranking_scores: Vec<RankingScore> = runner_results
             .iter()

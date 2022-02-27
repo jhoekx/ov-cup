@@ -27,9 +27,10 @@ CategorySelector.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
-const RankingResult = ({ score, place }) => (
+const RankingResult = ({ score, place, drop }) => (
   <div className="col">
-    {score}
+    {!drop && score}
+    {drop && <del>{score}</del>}
     <br />
     <span className="text-muted">
       (
@@ -42,11 +43,13 @@ const RankingResult = ({ score, place }) => (
 RankingResult.propTypes = {
   score: PropTypes.number,
   place: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  drop: PropTypes.bool,
 };
 
 RankingResult.defaultProps = {
   score: 0,
   place: '-',
+  drop: false,
 };
 
 const RankingEntry = ({ entry }) => (
@@ -73,6 +76,7 @@ const RankingEntry = ({ entry }) => (
               key={result.eventId}
               score={result.score || undefined}
               place={result.place || undefined}
+              drop={result.drop || false}
             />
           ),
         )}
@@ -94,6 +98,7 @@ RankingEntry.propTypes = {
       eventId: PropTypes.number.isRequired,
       score: PropTypes.number,
       place: PropTypes.number,
+      drop: PropTypes.bool,
     })),
   }).isRequired,
 };
@@ -116,7 +121,20 @@ const Ranking = ({ categories, cup, season }) => {
         thisPlace = '-';
       }
       previousScore = entry.totalScore;
-      entries.push({ ...entry, place: thisPlace });
+
+      const nonZeroResults = entry.scores
+        .map((result) => result.score)
+        .filter((result) => result > 0)
+        .sort((x, y) => y - x)
+        .slice(0, 3);
+      const results = entry.scores.map((result) => {
+        let drop = false;
+        if (!nonZeroResults.includes(result.score) && result.score > 0) {
+          drop = true;
+        }
+        return { ...result, drop };
+      });
+      entries.push({ ...entry, scores: results, place: thisPlace });
     });
     setRanking(entries);
   };

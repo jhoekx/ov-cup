@@ -45,3 +45,9 @@ Ensure Clippy and eslint are happy:
 $ npm run lint
 $ cargo clippy
 ```
+
+To fix up eslint errors:
+
+```bash
+$ npx eslint js/lib.js --fix
+```
