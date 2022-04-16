@@ -49,5 +49,5 @@ $ cargo clippy
 To fix up eslint errors:
 
 ```bash
-$ npx eslint js/lib.js --fix
+$ npx eslint js/lib.jsx --fix
 ```
