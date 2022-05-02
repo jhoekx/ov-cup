@@ -19,6 +19,9 @@ struct Opt {
 
     #[structopt(name = "FILE")]
     paths: Vec<String>,
+
+    #[structopt(long)]
+    by_class: Option<bool>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,7 +31,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ov_cup::create_database(db_path)?;
     for path in opt.paths {
         let event = webres::read_event_json(path)?;
-        ov_cup::store_event(db_path, opt.cup.to_owned(), opt.season.to_owned(), event)?;
+        let options = ov_cup::ResultProcessingOptions {
+            cup: opt.cup.to_owned(),
+            season: opt.season.to_owned(),
+            results_by_class: opt.by_class,
+        };
+        ov_cup::store_event(db_path, event, options)?;
     }
 
     Ok(())

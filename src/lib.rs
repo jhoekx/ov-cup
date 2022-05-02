@@ -93,6 +93,18 @@ lazy_static! {
     };
 }
 
+pub struct ResultProcessingOptions {
+    pub cup: String,
+    pub season: String,
+    pub results_by_class: Option<bool>,
+}
+
+impl ResultProcessingOptions {
+    pub fn validate_club(&self) -> bool {
+        self.cup == "kampioen"
+    }
+}
+
 pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
     conn.pragma_update(None, "foreign_keys", &"on")?;
@@ -137,15 +149,14 @@ pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>>
 
 pub fn store_event(
     db_path: &Path,
-    cup: String,
-    season: String,
     event: webres::Event,
+    options: ResultProcessingOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
 
-    let event_db_id = prepare_event(&conn, &cup, season, &event)?;
-    if cup == "kampioen" {
-        store_event_by_class(conn, event, event_db_id)?;
+    let event_db_id = prepare_event(&conn, &options.cup, &options.season, &event)?;
+    if options.cup == "kampioen" || (options.results_by_class.unwrap_or(false)) {
+        store_event_by_class(conn, event, options, event_db_id)?;
     } else {
         store_event_by_course(conn, event, event_db_id)?;
     }
@@ -156,7 +167,7 @@ pub fn store_event(
 fn prepare_event(
     conn: &Connection,
     cup: &str,
-    season: String,
+    season: &str,
     event: &webres::Event,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     conn.execute(
@@ -185,6 +196,7 @@ fn prepare_event(
 fn store_event_by_class(
     conn: Connection,
     event: webres::Event,
+    options: ResultProcessingOptions,
     event_db_id: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for category in event.categories.values() {
@@ -201,7 +213,7 @@ fn store_event_by_class(
             }
 
             let club = result.club.to_string();
-            if !is_ov_club(&club) {
+            if options.validate_club() && !is_ov_club(&club) {
                 eprintln!("Skipping club {}", club);
                 continue;
             }
