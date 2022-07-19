@@ -1,7 +1,9 @@
+.vscode/
 /target
 cgi-bin/
 data/
 dist/
 node_modules/
+venv/
 
 *.sqlite*

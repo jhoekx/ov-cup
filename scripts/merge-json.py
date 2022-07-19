@@ -38,12 +38,6 @@ def merge(existing_data: dict, new_data: dict) -> dict:
             continue
         distance = existing_data[category]["distance"] + new_data[category]["distance"]
         climb = existing_data[category]["climb"] + new_data[category]["climb"]
-        results[category] = {
-            "name": category,
-            "distance": distance,
-            "climb": climb,
-            "results": [],
-        }
 
         merged_results = []
         for result in existing_data[category]["results"]:
@@ -67,15 +61,31 @@ def merge(existing_data: dict, new_data: dict) -> dict:
                     )
                     break
 
-        final_results = []
-        for position, result in enumerate(
-            sorted(merged_results, key=lambda r: r["time"])
-        ):
-            final_results.append(
-                {**result, "position": position + 1, "time": format_time(result["time"])}
-            )
+        h_results = []
+        d_results = []
+        for result in merged_results:
+            if result["ageclass"].startswith("H"):
+                h_results.append(result)
+            else:
+                d_results.append(result)
 
-        results[category]["results"] = final_results
+        for g_category, g_results in [(f"H:{category}", h_results), (f"D:{category}", d_results)]:
+
+
+            final_results = []
+            for position, result in enumerate(
+                sorted(g_results, key=lambda r: r["time"])
+            ):
+                final_results.append(
+                    {**result, "position": position + 1, "time": format_time(result["time"])}
+                )
+
+            results[g_category] = {
+                "name": g_category,
+                "distance": distance,
+                "climb": climb,
+                "results": final_results,
+            }
 
     return results
 
