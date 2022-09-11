@@ -387,6 +387,7 @@ pub fn calculate_ranking(
     cup: String,
     season: String,
     age_class: String,
+    events_count: usize,
 ) -> Result<Vec<RankingEntry>, Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
 
@@ -497,7 +498,7 @@ pub fn calculate_ranking(
         let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
         scores.sort_unstable();
         scores.reverse();
-        let total_score: u32 = scores.iter().take(3).sum();
+        let total_score: u32 = scores.iter().take(events_count).sum();
 
         let ranking_scores: Vec<RankingScore> = runner_results
             .iter()

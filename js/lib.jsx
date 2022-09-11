@@ -103,7 +103,7 @@ RankingEntry.propTypes = {
   }).isRequired,
 };
 
-const Ranking = ({ categories, cup, season }) => {
+const Ranking = ({ categories, cup, season, events }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isLoading, setLoading] = useState(false);
   const [ranking, setRanking] = useState([]);
@@ -126,7 +126,7 @@ const Ranking = ({ categories, cup, season }) => {
         .map((result) => result.score)
         .filter((result) => result > 0)
         .sort((x, y) => y - x)
-        .slice(0, 3);
+        .slice(0, events);
       const results = entry.scores.map((result) => {
         let drop = false;
         if (!nonZeroResults.includes(result.score) && result.score > 0) {
@@ -149,6 +149,7 @@ const Ranking = ({ categories, cup, season }) => {
     url.searchParams.set('cup', cup);
     url.searchParams.set('season', season);
     url.searchParams.set('ageClass', selectedCategory);
+    url.searchParams.set('events', events);
 
     fetch(url)
       .then((response) => response.json())
@@ -189,6 +190,7 @@ Ranking.propTypes = {
   categories: PropTypes.arrayOf(PropTypes.string).isRequired,
   cup: PropTypes.string.isRequired,
   season: PropTypes.string.isRequired,
+  events: PropTypes.number.isRequired,
 };
 
 const categories = [];
@@ -203,6 +205,7 @@ if (rankingContainer) {
       categories={categories}
       cup={rankingContainer.dataset.cup}
       season={rankingContainer.dataset.season}
+      events={parseFloat(rankingContainer.dataset.events)}
     />,
     rankingContainer,
   );

@@ -28,6 +28,15 @@ pub fn main() {
         } else {
             return cgi::text_response(400, "missing parameter 'ageClass'");
         };
+        let events_count = if let Some(events_count) = params.get("events") {
+            if let Ok(events_count) = events_count.parse::<usize>() {
+                events_count
+            } else {
+                return cgi::text_response(400, "parameter 'events' should be a number");
+            }
+        } else {
+            return cgi::text_response(400, "missing parameter 'events'");
+        };
 
         let script_path = match std::env::var("SCRIPT_FILENAME") {
             Ok(script_path) => PathBuf::from(script_path),
@@ -42,7 +51,7 @@ pub fn main() {
             .unwrap()
             .join("ov.sqlite");
 
-        match calculate_ranking(&db_path, cup, season, age_class) {
+        match calculate_ranking(&db_path, cup, season, age_class, events_count) {
             Ok(ranking) => {
                 let body = serde_json::to_vec(&ranking).unwrap();
                 cgi::binary_response(200, "application/json", body)
