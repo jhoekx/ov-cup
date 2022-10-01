@@ -1,0 +1,26 @@
+[
+    {
+        "cup": "city-cup",
+        "season": "2022",
+        "name": "Roland VAN LOON",
+        "ageclass": "H45"
+    },
+    {
+        "cup": "city-cup",
+        "season": "2022",
+        "name": "Remco HEREIJGERS",
+        "ageclass": "H21"
+    },
+    {
+        "cup": "forest-cup",
+        "season": "2023",
+        "name": "Greet OEYEN",
+        "ageclass": "D21"
+    },
+    {
+        "cup": "forest-cup",
+        "season": "2023",
+        "name": "Linda VERBRAKEN",
+        "ageclass": "D50"
+    }
+]

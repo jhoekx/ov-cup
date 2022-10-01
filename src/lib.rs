@@ -9,7 +9,7 @@ extern crate lazy_static;
 use chrono::{NaiveTime, Timelike};
 use itertools::Itertools;
 use rusqlite::{params, Connection};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub mod cli;
 pub mod webres;
@@ -93,10 +93,20 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AgeClassOverride {
+    pub cup: String,
+    pub season: String,
+    pub name: String,
+    #[serde(rename = "ageclass")]
+    pub age_class: String,
+}
+
 pub struct ResultProcessingOptions {
     pub cup: String,
     pub season: String,
     pub results_by_class: Option<bool>,
+    pub overrides: Vec<AgeClassOverride>,
 }
 
 impl ResultProcessingOptions {
@@ -150,7 +160,7 @@ pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>>
 pub fn store_event(
     db_path: &Path,
     event: webres::Event,
-    options: ResultProcessingOptions,
+    options: &ResultProcessingOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
 
@@ -158,7 +168,7 @@ pub fn store_event(
     if options.cup == "kampioen" || (options.results_by_class.unwrap_or(false)) {
         store_event_by_class(conn, event, options, event_db_id)?;
     } else {
-        store_event_by_course(conn, event, event_db_id)?;
+        store_event_by_course(conn, event, options, event_db_id)?;
     }
 
     Ok(())
@@ -196,7 +206,7 @@ fn prepare_event(
 fn store_event_by_class(
     conn: Connection,
     event: webres::Event,
-    options: ResultProcessingOptions,
+    options: &ResultProcessingOptions,
     event_db_id: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for category in event.categories.values() {
@@ -274,6 +284,7 @@ fn is_ov_club(club: &str) -> bool {
 fn store_event_by_course(
     conn: Connection,
     event: webres::Event,
+    options: &ResultProcessingOptions,
     event_db_id: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let category_re = regex::Regex::new(r"[H|D]:\d*(\d)$").unwrap();
@@ -295,6 +306,9 @@ fn store_event_by_course(
                 continue;
             }
             let age_class = result.age_class.as_ref().unwrap();
+            let overridden_age_class =
+                override_age_class(&options.overrides, &result.name, age_class);
+            let age_class = overridden_age_class.as_ref();
 
             if COURSES[age_class as &str] < course_number {
                 eprintln!(
@@ -347,6 +361,20 @@ fn store_event_by_course(
     }
 
     Ok(())
+}
+
+fn override_age_class(overrides: &[AgeClassOverride], name: &str, age_class: &str) -> String {
+    for age_class_override in overrides {
+        if age_class_override.name == name {
+            eprintln!(
+                "Overriding age class of {} to {}",
+                name, age_class_override.age_class
+            );
+            return age_class_override.age_class.to_owned();
+        }
+    }
+
+    return age_class.to_string();
 }
 
 #[derive(Debug)]
