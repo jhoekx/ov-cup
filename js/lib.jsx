@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { render } from 'react-dom';
 import PropTypes from 'prop-types';
 
-const CategorySelector = ({ selectedCategory, categories, onChange }) => {
+function CategorySelector({ selectedCategory, categories, onChange }) {
   const change = (e) => {
     onChange(e.target.value);
   };
@@ -19,7 +19,7 @@ const CategorySelector = ({ selectedCategory, categories, onChange }) => {
       </div>
     </form>
   );
-};
+}
 
 CategorySelector.propTypes = {
   categories: PropTypes.arrayOf(PropTypes.string).isRequired,
@@ -27,18 +27,20 @@ CategorySelector.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
-const RankingResult = ({ score, place, drop }) => (
-  <div className="col">
-    {!drop && score}
-    {drop && <del>{score}</del>}
-    <br />
-    <span className="text-muted">
-      (
-      {place}
-      )
-    </span>
-  </div>
-);
+function RankingResult({ score, place, drop }) {
+  return (
+    <div className="col">
+      {!drop && score}
+      {drop && <del>{score}</del>}
+      <br />
+      <span className="text-muted">
+        (
+        {place}
+        )
+      </span>
+    </div>
+  );
+}
 
 RankingResult.propTypes = {
   score: PropTypes.number,
@@ -52,41 +54,43 @@ RankingResult.defaultProps = {
   drop: false,
 };
 
-const RankingEntry = ({ entry }) => (
-  <div className="row mt-lg-2 mt-3 pb-2">
-    <div className="col-lg-5">
-      <div className="row gx-3">
-        <div className="col-2 text-end">
-          {entry.place}
+function RankingEntry({ entry }) {
+  return (
+    <div className="row mt-lg-2 mt-3 pb-2">
+      <div className="col-lg-5">
+        <div className="row gx-3">
+          <div className="col-2 text-end">
+            {entry.place}
+          </div>
+          <div className="col-10">
+            {entry.name}
+            {' '}
+            <br />
+            {' '}
+            <span className="text-muted">{entry.club}</span>
+          </div>
         </div>
-        <div className="col-10">
-          {entry.name}
-          {' '}
-          <br />
-          {' '}
-          <span className="text-muted">{entry.club}</span>
+      </div>
+      <div className="col-lg mt-1 mt-lg-0 text-end">
+        <div className="row">
+          {entry.scores.map(
+            (result) => (
+              <RankingResult
+                key={result.eventId}
+                score={result.score || undefined}
+                place={result.place || undefined}
+                drop={result.drop || false}
+              />
+            ),
+          )}
+          <div className="col">
+            <strong>{entry.totalScore}</strong>
+          </div>
         </div>
       </div>
     </div>
-    <div className="col-lg mt-1 mt-lg-0 text-end">
-      <div className="row">
-        {entry.scores.map(
-          (result) => (
-            <RankingResult
-              key={result.eventId}
-              score={result.score || undefined}
-              place={result.place || undefined}
-              drop={result.drop || false}
-            />
-          ),
-        )}
-        <div className="col">
-          <strong>{entry.totalScore}</strong>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+  );
+}
 
 RankingEntry.propTypes = {
   entry: PropTypes.shape({
@@ -103,7 +107,9 @@ RankingEntry.propTypes = {
   }).isRequired,
 };
 
-const Ranking = ({ categories, cup, season, events }) => {
+function Ranking({
+  categories, cup, season, events,
+}) {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isLoading, setLoading] = useState(false);
   const [ranking, setRanking] = useState([]);
@@ -184,7 +190,7 @@ const Ranking = ({ categories, cup, season, events }) => {
         )}
     </>
   );
-};
+}
 
 Ranking.propTypes = {
   categories: PropTypes.arrayOf(PropTypes.string).isRequired,
