@@ -20,13 +20,19 @@ struct Opt {
     #[structopt(long, default_value = "H35")]
     age_class: String,
 
-    #[structopt(long, default_value="4")]
-    events_count: usize
+    #[structopt(long, default_value = "4")]
+    events_count: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
-    let ranking = calculate_ranking(Path::new("ov.sqlite"), opt.cup, opt.season, opt.age_class, opt.events_count)?;
+    let ranking = calculate_ranking(
+        Path::new("ov.sqlite"),
+        opt.cup,
+        opt.season,
+        opt.age_class,
+        opt.events_count,
+    )?;
     dbg!(ranking);
     Ok(())
 }

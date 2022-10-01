@@ -374,7 +374,7 @@ fn override_age_class(overrides: &[AgeClassOverride], name: &str, age_class: &st
         }
     }
 
-    return age_class.to_string();
+    age_class.to_string()
 }
 
 #[derive(Debug)]
