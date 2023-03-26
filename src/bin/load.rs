@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 pub fn read_overrides_json(
     path: String,
 ) -> Result<Vec<AgeClassOverride>, Box<dyn std::error::Error>> {
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     let reader = BufReader::new(file);
     let overrides = serde_json::from_reader(reader)?;
     Ok(overrides)

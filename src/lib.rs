@@ -117,8 +117,8 @@ impl ResultProcessingOptions {
 
 pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(db_path)?;
-    conn.pragma_update(None, "foreign_keys", &"on")?;
-    conn.pragma_update(None, "journal_mode", &"WAL")?;
+    conn.pragma_update(None, "foreign_keys", "on")?;
+    conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.execute_batch(
         "
         create table if not exists Runner (
