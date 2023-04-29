@@ -30,7 +30,8 @@ pub(crate) fn calculate_ranking(
         .filter_map(|event_id| event_id.ok())
         .collect();
 
-    let performance_filter = PerformanceFilter::new(age_class.to_string());
+    let (age_class, course) = get_course(&age_class)?;
+    let performance_filter = PerformanceFilter::new(age_class);
 
     // Find all results in the courses of the requested category
     let mut stmt = conn.prepare(
@@ -52,7 +53,7 @@ pub(crate) fn calculate_ranking(
     ",
     )?;
     let results: Vec<Performance> = stmt
-        .query_map(params![cup, season, get_course(&age_class)?], |row| {
+        .query_map(params![cup, season, course], |row| {
             let event_id = row.get(2)?;
             Ok(Performance {
                 name: row.get(0)?,
@@ -144,10 +145,19 @@ pub(crate) fn calculate_ranking(
     Ok(ranking)
 }
 
-fn get_course(age_class: &str) -> anyhow::Result<String> {
+fn get_course(age_class: &str) -> anyhow::Result<(String, String)> {
+    if age_class.contains('|') {
+        let re = Regex::new(r"^(H|D)(.*)\|(\d)")?;
+        if let Some(groups) = re.captures(age_class) {
+            let effective_class = format!("{}{}", &groups[1], &groups[2]);
+            let effective_course = format!("{}:0{}", &groups[1], &groups[3]);
+            return Ok((effective_class, effective_course));
+        }
+    }
+
     match age_class.chars().next() {
         Some(gender) => match COURSES.get(age_class) {
-            Some(course) => Ok(format!("{}:0{}", gender, course)),
+            Some(course) => Ok((age_class.to_owned(), format!("{}:0{}", gender, course))),
             None => bail!("age class not in courses"),
         },
         None => bail!("unknown course prefix"),
@@ -199,7 +209,19 @@ impl PerformanceFilter {
 
 #[cfg(test)]
 mod tests {
-    use super::PerformanceFilter;
+    use super::{get_course, PerformanceFilter};
+
+    #[test]
+    fn course() {
+        assert_eq!(
+            get_course("H-18").unwrap(),
+            ("H-18".to_string(), "H:02".to_string())
+        );
+        assert_eq!(
+            get_course("H-12|5").unwrap(),
+            ("H-12".to_string(), "H:05".to_string())
+        );
+    }
 
     #[test]
     fn filter_d50() {

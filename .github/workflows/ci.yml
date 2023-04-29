@@ -20,7 +20,7 @@ jobs:
         run: npm run lint
 
   lint-rust:
-    name: Lint Rust code
+    name: Test Rust code
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -28,3 +28,5 @@ jobs:
         run: cargo fmt --check
       - name: Lint Rust
         run: cargo clippy
+      - name: Test Rust
+        run: cargo test
