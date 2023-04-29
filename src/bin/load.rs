@@ -3,8 +3,9 @@
 
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::PathBuf;
 
+use ov_cup::db::LocalDatabase;
 use ov_cup::AgeClassOverride;
 use structopt::StructOpt;
 
@@ -48,12 +49,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         overrides,
     };
 
-    let db_path = Path::new("ov.sqlite");
-    ov_cup::create_database(db_path)?;
+    let db_path = PathBuf::from("ov.sqlite");
+    let db = LocalDatabase::new(db_path);
+    ov_cup::create_database(&db)?;
 
     for path in opt.paths {
         let event = webres::read_event_json(path)?;
-        ov_cup::store_event(db_path, event, &options)?;
+        ov_cup::store_event(&db, event, &options)?;
     }
 
     Ok(())

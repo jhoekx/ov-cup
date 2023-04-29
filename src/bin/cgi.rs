@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use ov_cup::calculate_ranking;
+use ov_cup::db::LocalDatabase;
 
 pub fn main() {
     cgi::handle(|request| {
@@ -19,7 +20,10 @@ pub fn main() {
             return cgi::text_response(400, "missing parameter 'cup'");
         };
         let season = if let Some(season) = params.get("season") {
-            season.to_string()
+            match season.parse::<i16>() {
+                Ok(season) => season,
+                Err(_) => return cgi::text_response(400, "invalid parameter 'season'"),
+            }
         } else {
             return cgi::text_response(400, "missing parameter 'season'");
         };
@@ -50,8 +54,9 @@ pub fn main() {
             .parent()
             .unwrap()
             .join("ov.sqlite");
+        let db = LocalDatabase::new(db_path);
 
-        match calculate_ranking(&db_path, cup, season, age_class, events_count) {
+        match calculate_ranking(&db, cup, season, age_class, events_count) {
             Ok(ranking) => {
                 let body = serde_json::to_vec(&ranking).unwrap();
                 cgi::binary_response(200, "application/json", body)

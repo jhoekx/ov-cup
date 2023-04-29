@@ -1,17 +1,18 @@
 // SPDX-FileCopyrightText: 2021 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, path::Path};
-
-#[macro_use]
-extern crate lazy_static;
+use std::collections::HashMap;
 
 use chrono::{NaiveTime, Timelike};
-use itertools::Itertools;
+use db::Database;
+use once_cell::sync::Lazy;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 pub mod cli;
+pub mod db;
+mod rules_2022;
+mod rules_2023;
 pub mod webres;
 
 const CLUBS: &[&str] = &[
@@ -46,52 +47,50 @@ const CLASSES: &[&str] = &[
     "D. Masters F",
 ];
 
-lazy_static! {
-    static ref COURSES: HashMap<&'static str, i32> = {
-        HashMap::<_, _>::from_iter(IntoIterator::into_iter([
-            ("H-20", 1),
-            ("H21", 1),
-            ("H35", 1),
-            ("H-18", 2),
-            ("H40", 2),
-            ("H45", 2),
-            ("H50", 2),
-            ("D-20", 2),
-            ("D21", 2),
-            ("H-16", 3),
-            ("H55", 3),
-            ("H60", 3),
-            ("D-16", 3),
-            ("D-18", 3),
-            ("D35", 3),
-            ("D40", 3),
-            ("D45", 3),
-            ("H-14", 4),
-            ("H65", 4),
-            ("D-14", 4),
-            ("D50", 4),
-            ("D55", 4),
-            ("H10B", 8),
-            ("H-10", 8),
-            ("H-12", 8),
-            ("H70", 5),
-            ("H75", 5),
-            ("H80", 5),
-            ("H85", 5),
-            ("H90", 5),
-            ("D10B", 8),
-            ("D-10", 8),
-            ("D-12", 8),
-            ("D60", 5),
-            ("D65", 5),
-            ("D70", 5),
-            ("D75", 5),
-            ("D80", 5),
-            ("D85", 5),
-            ("D90", 5),
-        ]))
-    };
-}
+static COURSES: Lazy<HashMap<&'static str, i32>> = Lazy::new(|| {
+    HashMap::<_, _>::from_iter(IntoIterator::into_iter([
+        ("H-20", 1),
+        ("H21", 1),
+        ("H35", 1),
+        ("H-18", 2),
+        ("H40", 2),
+        ("H45", 2),
+        ("H50", 2),
+        ("D-20", 2),
+        ("D21", 2),
+        ("H-16", 3),
+        ("H55", 3),
+        ("H60", 3),
+        ("D-16", 3),
+        ("D-18", 3),
+        ("D35", 3),
+        ("D40", 3),
+        ("D45", 3),
+        ("H-14", 4),
+        ("H65", 4),
+        ("D-14", 4),
+        ("D50", 4),
+        ("D55", 4),
+        ("H10B", 8),
+        ("H-10", 8),
+        ("H-12", 8),
+        ("H70", 5),
+        ("H75", 5),
+        ("H80", 6),
+        ("H85", 6),
+        ("H90", 6),
+        ("D10B", 8),
+        ("D-10", 8),
+        ("D-12", 8),
+        ("D60", 5),
+        ("D65", 5),
+        ("D70", 6),
+        ("D75", 6),
+        ("D80", 6),
+        ("D85", 6),
+        ("D90", 6),
+    ]))
+});
 
 #[derive(Debug, Deserialize)]
 pub struct AgeClassOverride {
@@ -115,8 +114,8 @@ impl ResultProcessingOptions {
     }
 }
 
-pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Connection::open(db_path)?;
+pub fn create_database(db: &dyn Database) -> Result<(), anyhow::Error> {
+    let conn = db.open()?;
     conn.pragma_update(None, "foreign_keys", "on")?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.execute_batch(
@@ -158,11 +157,11 @@ pub fn create_database(db_path: &Path) -> Result<(), Box<dyn std::error::Error>>
 }
 
 pub fn store_event(
-    db_path: &Path,
+    db: &dyn Database,
     event: webres::Event,
     options: &ResultProcessingOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Connection::open(db_path)?;
+) -> Result<(), anyhow::Error> {
+    let conn = db.open()?;
 
     let event_db_id = prepare_event(&conn, &options.cup, &options.season, &event)?;
     if options.cup == "kampioen" || (options.results_by_class.unwrap_or(false)) {
@@ -179,7 +178,7 @@ fn prepare_event(
     cup: &str,
     season: &str,
     event: &webres::Event,
-) -> Result<i64, Box<dyn std::error::Error>> {
+) -> Result<i64, anyhow::Error> {
     conn.execute(
         "
         insert into Event (cup, season, name, location, date) values (?, ?, ?, ?, ?)
@@ -208,7 +207,7 @@ fn store_event_by_class(
     event: webres::Event,
     options: &ResultProcessingOptions,
     event_db_id: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     for category in event.categories.values() {
         if !COURSES.contains_key(&category.name as &str)
             && !CLASSES.contains(&(&category.name as &str))
@@ -286,7 +285,7 @@ fn store_event_by_course(
     event: webres::Event,
     options: &ResultProcessingOptions,
     event_db_id: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     let category_re = regex::Regex::new(r"[H|D]:\d*(\d)$").unwrap();
     for category in event.categories.values() {
         let course_number = match category_re
@@ -411,155 +410,15 @@ pub struct RankingEntry {
 }
 
 pub fn calculate_ranking(
-    db_path: &Path,
+    db: &dyn Database,
     cup: String,
-    season: String,
+    season: i16,
     age_class: String,
     events_count: usize,
-) -> Result<Vec<RankingEntry>, Box<dyn std::error::Error>> {
-    let conn = Connection::open(db_path)?;
-
-    // Find all events
-    let mut stmt =
-        conn.prepare("select id from Event where cup = ? and season = ? order by date asc")?;
-    let events: Vec<u64> = stmt
-        .query_map(params![cup, season], |row| {
-            let event_id = row.get(0)?;
-            Ok(event_id)
-        })?
-        .filter_map(|event_id| event_id.ok())
-        .collect();
-
-    // Find all results of all runners with at least one ranking in the given category
-    let mut stmt = conn.prepare(
-        "
-        select
-            Runner.name,
-            Runner.club,
-            Event.id,
-            Result.age_class,
-            Result.category_name,
-            Result.position,
-            Result.time
-        from Result join Runner on Result.runner_id = Runner.id
-                    join Event on Result.event_id = Event.id
-        where Event.cup = ? and Event.season = ?
-          and Runner.id in (
-              select Runner.id
-              from Runner join Result on Runner.id = Result.Runner_id
-              where Result.age_class = ?
-          )
-        order by Runner.name asc, Event.date asc
-    ",
-    )?;
-    let all_results = stmt
-        .query_map(params![cup, season, age_class], |row| {
-            let event_id = row.get(2)?;
-            Ok(Performance {
-                name: row.get(0)?,
-                club: row.get(1)?,
-                event_id,
-                age_class: row.get(3)?,
-                category_name: row.get(4)?,
-                position: row.get(5)?,
-                time: row.get(6)?,
-                score: 0,
-            })
-        })?
-        .filter_map(|r| r.ok());
-
-    // TODO: Keep only courses that are valid for the age class of the result
-
-    // Keep only results of runners where the last age class equals the given age class
-    // This filters out runners who moved to a different category,
-    // while keeping the runners that moved into this category.
-    let mut results = Vec::new();
-    for (_, runner_results) in &all_results
-        .into_iter()
-        .group_by(|result| result.name.to_owned())
-    {
-        let mut runner_results: Vec<Performance> = runner_results.collect();
-        if runner_results.last().unwrap().age_class == age_class {
-            results.append(&mut runner_results);
-        }
+) -> Result<Vec<RankingEntry>, anyhow::Error> {
+    if cup == "kampioen" || season < 2023 {
+        rules_2022::calculate_ranking(db, cup, season, age_class, events_count)
+    } else {
+        rules_2023::calculate_ranking(db, cup, season, age_class, events_count)
     }
-
-    // Find the best results in all courses that someone of the given age class participated in
-    let courses: Vec<(u64, String)> = results
-        .iter()
-        .map(|result| (result.event_id, result.category_name.to_owned()))
-        .unique()
-        .collect();
-    let mut stmt = conn.prepare(
-        "
-        select Result.time
-        from Result
-        where Result.event_id = ? and Result.category_name = ?
-        order by Result.time asc
-        limit 1
-    ",
-    )?;
-    let mut fastest_times = HashMap::new();
-    for (event_id, category_name) in courses {
-        let fastest_time: NaiveTime =
-            stmt.query_row(params![event_id, category_name], |row| row.get(0))?;
-        fastest_times.insert((event_id, category_name), total_seconds(fastest_time));
-    }
-
-    // Calculate score for each performance based on the fastest times
-    let results = results.into_iter().map(|result| {
-        let score = 1000
-            * fastest_times
-                .get(&(result.event_id, result.category_name.to_owned()))
-                .unwrap()
-            / total_seconds(result.time);
-        Performance { score, ..result }
-    });
-
-    // Calculate the total scores per runner
-    let mut ranking: Vec<RankingEntry> = Vec::new();
-    for (name, runner_results) in &results
-        .into_iter()
-        .group_by(|result| result.name.to_owned())
-    {
-        let runner_results: Vec<Performance> = runner_results.collect();
-        let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
-        scores.sort_unstable();
-        scores.reverse();
-        let total_score: u32 = scores.iter().take(events_count).sum();
-
-        let ranking_scores: Vec<RankingScore> = runner_results
-            .iter()
-            .map(|performance| RankingScore {
-                event_id: performance.event_id,
-                score: Some(performance.score),
-                place: Some(performance.position),
-            })
-            .collect();
-
-        ranking.push(RankingEntry {
-            name,
-            club: runner_results
-                .last()
-                .map_or("".to_owned(), |performance| performance.club.to_string()),
-            total_score,
-            scores: events
-                .iter()
-                .map(|&event_id| {
-                    ranking_scores
-                        .iter()
-                        .find(|&score| score.event_id == event_id)
-                        .copied()
-                        .unwrap_or(RankingScore {
-                            event_id,
-                            score: None,
-                            place: None,
-                        })
-                })
-                .collect(),
-        })
-    }
-    ranking.sort_by_key(|entry| entry.total_score);
-    ranking.reverse();
-    Ok(ranking)
 }
