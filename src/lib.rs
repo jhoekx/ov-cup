@@ -416,7 +416,7 @@ pub fn calculate_ranking(
     age_class: String,
     events_count: usize,
 ) -> Result<Vec<RankingEntry>, anyhow::Error> {
-    if cup == "kampioen" || season < 2023 {
+    if cup == "kampioen" || season < 2023 || (cup == "forest-cup" && season == 2023) {
         rules_2022::calculate_ranking(db, cup, season, age_class, events_count)
     } else {
         rules_2023::calculate_ranking(db, cup, season, age_class, events_count)
