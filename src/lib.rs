@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use anyhow::bail;
 use chrono::{NaiveTime, Timelike};
 use db::Database;
 use once_cell::sync::Lazy;
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod cli;
 pub mod db;
+pub mod iof;
 mod rules_2022;
 mod rules_2023;
 pub mod webres;
@@ -101,11 +103,24 @@ pub struct AgeClassOverride {
     pub age_class: String,
 }
 
+#[derive(Debug)]
+pub struct Competitor {
+    name: String,
+    age_class: String,
+}
+
+impl Competitor {
+    pub fn new(name: String, age_class: String) -> Self {
+        Self { name, age_class }
+    }
+}
+
 pub struct ResultProcessingOptions {
     pub cup: String,
     pub season: String,
     pub results_by_class: Option<bool>,
     pub overrides: Vec<AgeClassOverride>,
+    pub competitors: Vec<Competitor>,
 }
 
 impl ResultProcessingOptions {
@@ -207,7 +222,7 @@ fn store_event_by_class(
     event: webres::Event,
     options: &ResultProcessingOptions,
     event_db_id: i64,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     for category in event.categories.values() {
         if !COURSES.contains_key(&category.name as &str)
             && !CLASSES.contains(&(&category.name as &str))
@@ -243,7 +258,20 @@ fn store_event_by_class(
             )?;
 
             let age_class = if CLASSES.contains(&(&category.name as &str)) {
-                result.age_class.as_ref().unwrap()
+                match result.age_class.as_ref() {
+                    Some(age_class) => age_class,
+                    None => {
+                        let age_class = options
+                            .competitors
+                            .iter()
+                            .find(|c| c.name == result.name)
+                            .map(|c| &c.age_class);
+                        match age_class {
+                            Some(age_class) => age_class,
+                            None => bail!("No age class for {}", result.name),
+                        }
+                    }
+                }
             } else {
                 &category.name
             };
