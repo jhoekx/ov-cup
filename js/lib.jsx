@@ -1,6 +1,6 @@
 import 'bootstrap';
 import React, { useState, useEffect } from 'react';
-import { render } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import PropTypes from 'prop-types';
 
 function CategorySelector({ selectedCategory, categories, onChange }) {
@@ -206,7 +206,8 @@ document.querySelectorAll('#ranking span').forEach((category) => {
 
 const rankingContainer = document.getElementById('ranking');
 if (rankingContainer) {
-  render(
+  const root = createRoot(rankingContainer);
+  root.render(
     <Ranking
       categories={categories}
       cup={rankingContainer.dataset.cup}
