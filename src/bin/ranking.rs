@@ -3,32 +3,37 @@
 
 use std::path::PathBuf;
 
+use clap::Parser;
 use ov_cup::db::LocalDatabase;
-use structopt::StructOpt;
 
 use ov_cup::calculate_ranking;
 use ov_cup::cli;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "ranking")]
-struct Opt {
-    #[structopt(long, default_value = "forest-cup", parse(try_from_str = cli::parse_cup))]
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long, default_value = "forest-cup", value_parser = cli::parse_cup)]
     cup: String,
 
-    #[structopt(long, default_value = "2020")]
+    #[arg(long, default_value = "2020")]
     season: i16,
 
-    #[structopt(long, default_value = "H35")]
+    #[arg(long, default_value = "H35")]
     age_class: String,
 
-    #[structopt(long, default_value = "4")]
+    #[arg(long, default_value = "4")]
     events_count: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let opt = Opt::from_args();
+    let args = Args::parse();
     let db = LocalDatabase::new(PathBuf::from("ov.sqlite"));
-    let ranking = calculate_ranking(&db, opt.cup, opt.season, opt.age_class, opt.events_count)?;
+    let ranking = calculate_ranking(
+        &db,
+        args.cup,
+        args.season,
+        args.age_class,
+        args.events_count,
+    )?;
     dbg!(ranking);
     Ok(())
 }
