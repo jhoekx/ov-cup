@@ -8,9 +8,7 @@ use itertools::Itertools;
 use regex::Regex;
 use rusqlite::{params, Connection};
 
-use crate::{
-    db::Database, total_seconds, Performance, RankingEntry, RankingScore, CLASS_CHANGES, COURSES,
-};
+use crate::{db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES};
 
 pub(crate) fn calculate_ranking(
     db: &dyn Database,
@@ -36,8 +34,9 @@ pub(crate) fn calculate_ranking(
 
     // Handle people changing class mid-season (only for forest cup)
     if cup == "forest-cup" {
-        if let Some(other_class) = CLASS_CHANGES.get(&age_class as &str) {
-            let older_performances = calculate_performances(&conn, &cup, season, other_class)?;
+        // Find the previous class and calculate that ranking
+        if let Some(other_class) = find_previous_age_class(&age_class as &str) {
+            let older_performances = calculate_performances(&conn, &cup, season, &other_class)?;
             // Add all older performances of runners in the real results
             let all_runners: HashSet<String> = results.iter().map(|p| p.name.clone()).collect();
             for performance in older_performances {
@@ -52,9 +51,23 @@ pub(crate) fn calculate_ranking(
     let mut ranking: Vec<RankingEntry> = Vec::new();
     for (name, runner_results) in &results
         .into_iter()
+        .sorted_by_key(|p| p.name.clone())
         .group_by(|result| result.name.to_owned())
     {
-        let runner_results: Vec<Performance> = runner_results.collect();
+        // Keep the best results for each event for each runner
+        let results_by_event: HashMap<u64, Vec<Performance>> = runner_results
+            .into_iter()
+            .sorted_by_key(|p| p.event_id)
+            .into_group_map_by(|p| p.event_id);
+        let mut runner_results: Vec<&Performance> = vec![];
+        for performances in results_by_event.values() {
+            let mut performances: Vec<&Performance> =
+                performances.iter().sorted_by_key(|p| p.score).collect();
+            performances.reverse();
+            runner_results.push(performances[0]);
+        }
+
+        // Calculate total score
         let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
         scores.sort_unstable();
         scores.reverse();
@@ -94,6 +107,42 @@ pub(crate) fn calculate_ranking(
     ranking.sort_by_key(|entry| entry.total_score);
     ranking.reverse();
     Ok(ranking)
+}
+
+fn find_previous_age_class(age_class: &str) -> Option<String> {
+    let age_class_re = Regex::new(r"(?<age>\d+)").unwrap();
+    if let Some(captures) = age_class_re.captures(age_class) {
+        let age = match captures["age"].parse::<i32>() {
+            Ok(age) => age,
+            Err(_) => return None,
+        };
+
+        let ages: Vec<i32> = COURSES
+            .keys()
+            .flat_map(|k| {
+                age_class_re
+                    .captures(k)
+                    .map(|captures| captures["age"].parse::<i32>().unwrap())
+            })
+            .unique()
+            .sorted()
+            .collect();
+
+        if let Some(gender) = age_class.chars().next() {
+            if let Some(previous_age) = ages
+                .into_iter()
+                .take_while(|test_age| *test_age < age)
+                .last()
+            {
+                if previous_age < 21 {
+                    return Some(format!("{}-{}", gender, previous_age));
+                }
+                return Some(format!("{}{}", gender, previous_age));
+            }
+        }
+    }
+
+    None
 }
 
 fn calculate_performances(

@@ -94,26 +94,6 @@ static COURSES: Lazy<HashMap<&'static str, i32>> = Lazy::new(|| {
     ]))
 });
 
-/// Allows results in the value class for each key class
-static CLASS_CHANGES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
-    HashMap::<_, _>::from_iter(IntoIterator::into_iter([
-        ("D-12", "D-10"),
-        ("H-12", "H-10"),
-        ("D-16", "D-14"),
-        ("H-16", "H-14"),
-        ("D-20", "D-18"),
-        ("H-20", "H-18"),
-        ("H40", "H35"),
-        ("D35", "D21"),
-        ("D50", "D45"),
-        ("D60", "D55"),
-        ("H65", "H60"),
-        ("D70", "D65"),
-        ("H70", "H65"),
-        ("H80", "H75"),
-    ]))
-});
-
 #[derive(Debug, Deserialize)]
 pub struct AgeClassOverride {
     pub cup: String,
