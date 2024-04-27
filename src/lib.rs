@@ -15,6 +15,7 @@ pub mod db;
 pub mod iof;
 mod rules_2022;
 mod rules_2023;
+mod rules_2024;
 pub mod webres;
 
 const CLUBS: &[&str] = &[
@@ -446,7 +447,9 @@ pub fn calculate_ranking(
 ) -> Result<Vec<RankingEntry>, anyhow::Error> {
     if cup == "kampioen" || season < 2023 || (cup == "forest-cup" && season == 2023) {
         rules_2022::calculate_ranking(db, cup, season, age_class, events_count)
-    } else {
+    } else if season < 2024 || (cup == "forest-cup" && season == 2024) {
         rules_2023::calculate_ranking(db, cup, season, age_class, events_count)
+    } else {
+        rules_2024::calculate_ranking(db, cup, season, age_class, events_count)
     }
 }
