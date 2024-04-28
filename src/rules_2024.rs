@@ -152,7 +152,7 @@ fn calculate_performances(
     age_class: &str,
 ) -> anyhow::Result<Vec<Performance>> {
     let (age_class, course) = get_course(age_class)?;
-    let performance_filter = PerformanceFilter::new(age_class);
+    let performance_filter = PerformanceFilter::new(age_class.clone());
 
     // Find all results in the course of the requested category
     let mut stmt = conn.prepare(
@@ -173,7 +173,7 @@ fn calculate_performances(
         order by Runner.name asc, Event.date asc
     ",
     )?;
-    let results: Vec<Performance> = stmt
+    let mut results: Vec<Performance> = stmt
         .query_map(params![cup, season, course], |row| {
             let event_id = row.get(2)?;
             Ok(Performance {
@@ -190,6 +190,44 @@ fn calculate_performances(
         .filter_map(|r| r.ok())
         .filter(|r| !performance_filter.should_ignore(&r.age_class))
         .collect();
+
+    // For D21, add all participants in course 1 (points are calculated relative to the men)
+    if age_class == "D21" {
+        let mut stmt = conn.prepare(
+            "
+            select
+                Runner.name,
+                Runner.club,
+                Event.id,
+                Result.age_class,
+                Result.position,
+                Result.time
+            from Result join Runner on Result.runner_id = Runner.id
+                        join Event on Result.event_id = Event.id
+            where Event.cup = ?
+              and Event.season = ?
+              and (Result.category_name = ? or Result.category_name = ?)
+            order by Runner.name asc, Event.date asc
+        ",
+        )?;
+        let course_01_results: Vec<Performance> = stmt
+            .query_map(params![cup, season, "D:01", "H:01"], |row| {
+                let event_id = row.get(2)?;
+                Ok(Performance {
+                    name: row.get(0)?,
+                    club: row.get(1)?,
+                    event_id,
+                    age_class: row.get(3)?,
+                    category_name: "D:01".to_owned(),
+                    position: row.get(4)?,
+                    time: row.get(5)?,
+                    score: 0,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        results.extend(course_01_results);
+    }
 
     // Find the fastest time
     let mut fastest_times = HashMap::new();
@@ -217,7 +255,9 @@ fn calculate_performances(
             / total_seconds(result.time);
         Performance { score, ..result }
     });
-    Ok(results.collect())
+    Ok(results
+        .filter(|result| result.age_class.chars().next() == age_class.chars().next()) // same gender
+        .collect())
 }
 
 fn get_course(age_class: &str) -> anyhow::Result<(String, String)> {
@@ -263,14 +303,15 @@ impl PerformanceFilter {
             .iter()
             .filter(|(_, v)| **v == course) // same course
             .filter(|(k, _)| k.chars().nth(0) == age_class.chars().nth(0)) // same gender
+            .filter(|(k, _)| !k.contains('B')) // Skip 10B
             .map(|(k, _)| k)
             .sorted_by_key(|k| get_age(&re, k))
             .collect_vec();
 
         let allow_others = if get_age(&re, &age_class) < 21 {
-            **dbg!(classes_in_course).first().unwrap() == age_class
+            **classes_in_course.first().unwrap() == age_class
         } else {
-            **dbg!(classes_in_course).last().unwrap() == age_class || age_class == "H21"
+            **classes_in_course.last().unwrap() == age_class || age_class == "H21"
         };
 
         PerformanceFilter {
