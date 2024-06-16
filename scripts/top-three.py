@@ -8,7 +8,7 @@ def run():
         if line.strip() == "":
             continue
         category = line.strip()
-        response = requests.get(f"https://rankings.orienteering.vlaanderen/cgi-bin/cup-cgi?cup=forest-cup&season=2022&ageClass={category}")
+        response = requests.get(f"https://rankings.orienteering.vlaanderen/cgi-bin/cup-cgi?cup=city-cup&season=2024&ageClass={category}&events=3")
         response.raise_for_status()
         data = response.json()
 
