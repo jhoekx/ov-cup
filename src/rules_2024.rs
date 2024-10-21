@@ -39,8 +39,11 @@ pub(crate) fn calculate_ranking(
             let older_performances = calculate_performances(&conn, &cup, season, &other_class)?;
             // Add all older performances of runners in the real results
             let all_runners: HashSet<String> = results.iter().map(|p| p.name.clone()).collect();
+
+            // only keep performances in a different course
+            let (_, course) = get_course(&age_class)?;
             for performance in older_performances {
-                if all_runners.contains(&performance.name) {
+                if all_runners.contains(&performance.name) && performance.category_name != course {
                     results.push(performance);
                 }
             }
