@@ -22,9 +22,9 @@ pub(crate) fn calculate_ranking(
     // Find all events
     let mut stmt =
         conn.prepare("select id from Event where cup = ? and season = ? order by date asc")?;
-    let events: Vec<u64> = stmt
+    let events: Vec<_> = stmt
         .query_map(params![cup, season], |row| {
-            let event_id = row.get(0)?;
+            let event_id: u64 = row.get(0)?;
             Ok(event_id)
         })?
         .filter_map(|event_id| event_id.ok())
@@ -40,10 +40,13 @@ pub(crate) fn calculate_ranking(
             // Add all older performances of runners in the real results
             let all_runners: HashSet<String> = results.iter().map(|p| p.name.clone()).collect();
 
-            // only keep performances in a different course
+            // only keep performances in a different course while in a different age class
             let (_, course) = get_course(&age_class)?;
             for performance in older_performances {
-                if all_runners.contains(&performance.name) && performance.category_name != course {
+                if all_runners.contains(&performance.name)
+                    && performance.category_name != course
+                    && performance.age_class != age_class
+                {
                     results.push(performance);
                 }
             }
