@@ -52,7 +52,7 @@ pub(crate) fn calculate_ranking(
     for (name, runner_results) in &results
         .into_iter()
         .sorted_by_key(|p| p.name.clone())
-        .group_by(|result| result.name.to_owned())
+        .chunk_by(|result| result.name.to_owned())
     {
         // Keep the best results for each event for each runner
         let results_by_event: HashMap<u64, Vec<Performance>> = runner_results

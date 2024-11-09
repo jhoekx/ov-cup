@@ -75,7 +75,7 @@ pub(crate) fn calculate_ranking(
     let mut results = Vec::new();
     for (_, runner_results) in &all_results
         .into_iter()
-        .group_by(|result| result.name.to_owned())
+        .chunk_by(|result| result.name.to_owned())
     {
         let mut runner_results: Vec<Performance> = runner_results.collect();
         if runner_results.last().unwrap().age_class == age_class {
@@ -119,7 +119,7 @@ pub(crate) fn calculate_ranking(
     let mut ranking: Vec<RankingEntry> = Vec::new();
     for (name, runner_results) in &results
         .into_iter()
-        .group_by(|result| result.name.to_owned())
+        .chunk_by(|result| result.name.to_owned())
     {
         let runner_results: Vec<Performance> = runner_results.collect();
         let mut scores: Vec<u32> = runner_results.iter().map(|result| result.score).collect();
