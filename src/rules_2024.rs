@@ -5,10 +5,66 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::bail;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use rusqlite::{params, Connection};
 
 use crate::{db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES};
+
+#[derive(Debug)]
+struct AllowedClassChange {
+    from_class: String,
+    course: String,
+}
+
+impl AllowedClassChange {
+    fn new(class_name: &str, course: &str) -> Self {
+        Self {
+            from_class: class_name.to_owned(),
+            course: course.to_owned(),
+        }
+    }
+}
+
+static ALLOWED_CLASS_CHANGE: Lazy<HashMap<&'static str, AllowedClassChange>> = Lazy::new(|| {
+    HashMap::<_, _>::from_iter(IntoIterator::into_iter([
+        ("H-20", AllowedClassChange::new("H-18", "H:02")),
+        ("H21", AllowedClassChange::new("H-20", "H:01")),
+        ("H-18", AllowedClassChange::new("H-16", "H:03")),
+        ("H40", AllowedClassChange::new("H35", "H:01")),
+        ("H45", AllowedClassChange::new("H45", "H:02")),
+        ("H50", AllowedClassChange::new("H45", "H:02")),
+        ("D-20", AllowedClassChange::new("D-18", "D:03")),
+        ("D21", AllowedClassChange::new("D-20", "D:02")),
+        ("H-16", AllowedClassChange::new("H-14", "H:04")),
+        ("H55", AllowedClassChange::new("H50", "H:02")),
+        ("H60", AllowedClassChange::new("H55", "H:03")),
+        ("D-16", AllowedClassChange::new("D-14", "D:04")),
+        ("D-18", AllowedClassChange::new("D-16", "D:03")),
+        ("D35", AllowedClassChange::new("D21", "D:02")),
+        ("D40", AllowedClassChange::new("D35", "D:03")),
+        ("D45", AllowedClassChange::new("D40", "D:03")),
+        ("H-14", AllowedClassChange::new("H-12", "H:05")),
+        ("H65", AllowedClassChange::new("H60", "H:03")),
+        ("D-14", AllowedClassChange::new("D-12", "D:05")),
+        ("D50", AllowedClassChange::new("D45", "D:03")),
+        ("D55", AllowedClassChange::new("D50", "D:04")),
+        ("H-12", AllowedClassChange::new("H-10", "H:08")),
+        ("H70", AllowedClassChange::new("H65", "H:04")),
+        ("H75", AllowedClassChange::new("H70", "H:05")),
+        ("H80", AllowedClassChange::new("H75", "H:05")),
+        ("H85", AllowedClassChange::new("H80", "H:06")),
+        ("H90", AllowedClassChange::new("H85", "H:06")),
+        ("D-12", AllowedClassChange::new("D-10", "D:08")),
+        ("D60", AllowedClassChange::new("D55", "D:04")),
+        ("D65", AllowedClassChange::new("D60", "D:05")),
+        ("D70", AllowedClassChange::new("D65", "D:05")),
+        ("D75", AllowedClassChange::new("D70", "D:06")),
+        ("D80", AllowedClassChange::new("D75", "D:06")),
+        ("D85", AllowedClassChange::new("D80", "D:06")),
+        ("D90", AllowedClassChange::new("D85", "D:06")),
+    ]))
+});
 
 pub(crate) fn calculate_ranking(
     db: &dyn Database,
@@ -36,21 +92,36 @@ pub(crate) fn calculate_ranking(
     if cup == "forest-cup" {
         // Find the previous class and calculate that ranking
         if let Some(other_class) = find_previous_age_class(&age_class as &str) {
-            let older_performances = calculate_performances(&conn, &cup, season, &other_class)?;
+            let older_performances =
+                calculate_performances(&conn, &cup, season, &other_class.from_class)?;
             // Add all older performances of runners in the real results
             let all_runners: HashSet<String> = results.iter().map(|p| p.name.clone()).collect();
 
             // only keep performances in a different course while in a different age class
-            let (_, course) = get_course(&age_class)?;
             for performance in older_performances {
                 if all_runners.contains(&performance.name)
-                    && performance.category_name != course
-                    && performance.age_class != age_class
+                    && performance.category_name == other_class.course
+                    && performance.age_class == other_class.from_class
                 {
                     results.push(performance);
                 }
             }
         }
+
+        // Drop people who have valid results in the next age class
+        // for (k, v) in ALLOWED_CLASS_CHANGE.iter() {
+        //     if v.from_class == age_class {
+        //         let newer_performances: HashSet<_> =
+        //             calculate_performances(&conn, &cup, season, k)?
+        //                 .iter()
+        //                 .map(|p| p.name.clone())
+        //                 .collect();
+        //         results = results
+        //             .into_iter()
+        //             .filter(|p| !newer_performances.contains(&p.name))
+        //             .collect();
+        //     }
+        // }
     }
 
     // Calculate the total scores per runner
@@ -115,40 +186,8 @@ pub(crate) fn calculate_ranking(
     Ok(ranking)
 }
 
-fn find_previous_age_class(age_class: &str) -> Option<String> {
-    let age_class_re = Regex::new(r"(?<age>\d+)").unwrap();
-    if let Some(captures) = age_class_re.captures(age_class) {
-        let age = match captures["age"].parse::<i32>() {
-            Ok(age) => age,
-            Err(_) => return None,
-        };
-
-        let ages: Vec<i32> = COURSES
-            .keys()
-            .flat_map(|k| {
-                age_class_re
-                    .captures(k)
-                    .map(|captures| captures["age"].parse::<i32>().unwrap())
-            })
-            .unique()
-            .sorted()
-            .collect();
-
-        if let Some(gender) = age_class.chars().next() {
-            if let Some(previous_age) = ages
-                .into_iter()
-                .take_while(|test_age| *test_age < age)
-                .last()
-            {
-                if previous_age < 21 {
-                    return Some(format!("{}-{}", gender, previous_age));
-                }
-                return Some(format!("{}{}", gender, previous_age));
-            }
-        }
-    }
-
-    None
+fn find_previous_age_class(age_class: &str) -> Option<&AllowedClassChange> {
+    ALLOWED_CLASS_CHANGE.get(age_class)
 }
 
 fn calculate_performances(
