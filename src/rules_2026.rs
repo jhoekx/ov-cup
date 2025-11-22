@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Jeroen Hoekx
+// SPDX-FileCopyrightText: 2025 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::collections::{HashMap, HashSet};
@@ -109,21 +109,6 @@ pub(crate) fn calculate_ranking(
                 }
             }
         }
-
-        // Drop people who have valid results in the next age class
-        // for (k, v) in ALLOWED_CLASS_CHANGE.iter() {
-        //     if v.from_class == age_class {
-        //         let newer_performances: HashSet<_> =
-        //             calculate_performances(&conn, &cup, season, k)?
-        //                 .iter()
-        //                 .map(|p| p.name.clone())
-        //                 .collect();
-        //         results = results
-        //             .into_iter()
-        //             .filter(|p| !newer_performances.contains(&p.name))
-        //             .collect();
-        //     }
-        // }
     }
 
     // Calculate the total scores per runner
