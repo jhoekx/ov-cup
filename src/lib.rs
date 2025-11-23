@@ -378,12 +378,15 @@ fn store_event_by_colored_course(
     .collect();
 
     let course_re = regex::Regex::new(r"[H|D]:(.+)$").unwrap();
-    for category in event.categories.values() {
-        let course_name: &str = match course_re
-            .captures_iter(&category.name)
+    let get_course_name = |name| {
+        course_re
+            .captures_iter(name)
             .next()
             .map(|g| g.get(1).unwrap().as_str())
-        {
+    };
+
+    for category in event.categories.values() {
+        let course_name: &str = match get_course_name(&category.name) {
             Some(course_name) => course_name,
             None => {
                 eprintln!("Skipping course {}", category.name);
@@ -408,9 +411,19 @@ fn store_event_by_colored_course(
                 override_age_class(&options.overrides, &result.name, age_class);
             let age_class = overridden_age_class.as_ref();
 
+            let result_course_name = match get_course_name(COURSES_COLORS[age_class]) {
+                Some(result_course_name) => result_course_name,
+                None => {
+                    eprintln!(
+                        "unable to find course name {} for result {}",
+                        COURSES_COLORS[age_class], result.name
+                    );
+                    continue;
+                }
+            };
             let result_index = all_courses
-                .get_index_of(COURSES_COLORS[age_class as &str])
-                .expect("unknown course");
+                .get_index_of(result_course_name)
+                .unwrap_or_else(|| panic!("unknown course: {}", result_course_name));
 
             if result_index < course_index {
                 eprintln!(
