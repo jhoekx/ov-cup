@@ -8,7 +8,9 @@ use itertools::Itertools;
 use regex::Regex;
 use rusqlite::{params, Connection};
 
-use crate::{db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES};
+use crate::{
+    db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES_NUMBERED,
+};
 
 pub(crate) fn calculate_ranking(
     db: &dyn Database,
@@ -117,7 +119,7 @@ fn find_previous_age_class(age_class: &str) -> Option<String> {
             Err(_) => return None,
         };
 
-        let ages: Vec<i32> = COURSES
+        let ages: Vec<i32> = COURSES_NUMBERED
             .keys()
             .flat_map(|k| {
                 age_class_re
@@ -231,7 +233,7 @@ fn get_course(age_class: &str) -> anyhow::Result<(String, String)> {
     }
 
     match age_class.chars().next() {
-        Some(gender) => match COURSES.get(age_class) {
+        Some(gender) => match COURSES_NUMBERED.get(age_class) {
             Some(course) => Ok((age_class.to_owned(), format!("{}:0{}", gender, course))),
             None => bail!("age class not in courses"),
         },

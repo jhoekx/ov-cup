@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use anyhow::bail;
 use chrono::{NaiveTime, Timelike};
 use db::Database;
+use indexmap::IndexSet;
 use once_cell::sync::Lazy;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ pub mod iof;
 mod rules_2022;
 mod rules_2023;
 mod rules_2024;
+mod rules_2026;
 pub mod webres;
 
 const CLUBS: &[&str] = &[
@@ -50,7 +52,8 @@ const CLASSES: &[&str] = &[
     "D. Masters F",
 ];
 
-static COURSES: Lazy<HashMap<&'static str, i32>> = Lazy::new(|| {
+/// Courses using number codes as used before 2025.
+static COURSES_NUMBERED: Lazy<HashMap<&'static str, i32>> = Lazy::new(|| {
     HashMap::<_, _>::from_iter(IntoIterator::into_iter([
         ("H-20", 1),
         ("H21", 1),
@@ -92,6 +95,52 @@ static COURSES: Lazy<HashMap<&'static str, i32>> = Lazy::new(|| {
         ("D80", 6),
         ("D85", 6),
         ("D90", 6),
+    ]))
+});
+
+/// Courses using color codes as used from 2025.
+static COURSES_COLORS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    HashMap::<_, _>::from_iter(IntoIterator::into_iter([
+        ("H-20", "H:Zwart Extra Lang"),
+        ("H21", "H:Zwart Extra Lang"),
+        ("H35", "H:Zwart Extra Lang"),
+        ("H-18", "H:Zwart Lang"),
+        ("H40", "H:Zwart Lang"),
+        ("H45", "H:Zwart Lang"),
+        ("H50", "H:Zwart Lang"),
+        ("D-20", "D:Zwart Lang"),
+        ("D21", "D:Zwart Lang"),
+        ("H-16", "H:Zwart Midden"),
+        ("H55", "H:Zwart Midden"),
+        ("H60", "H:Zwart Midden"),
+        ("D-16", "D:Zwart Midden"),
+        ("D-18", "D:Zwart Midden"),
+        ("D35", "D:Zwart Midden"),
+        ("D40", "D:Zwart Midden"),
+        ("D45", "D:Zwart Midden"),
+        ("H-14", "H:Rood Midden"),
+        ("H65", "H:Zwart Midden"),
+        ("D-14", "D:Rood Midden"),
+        ("D50", "D:Zwart Midden"),
+        ("D55", "D:Zwart Midden"),
+        ("H10B", "H:Groen Kort"),
+        ("H-10", "H:Groen Kort"),
+        ("H-12", "H:Blauw Kort"),
+        ("H70", "H:Zwart Kort"),
+        ("H75", "H:Zwart Kort"),
+        ("H80", "H:Blauw Kort"),
+        ("H85", "H:Blauw Kort"),
+        ("H90", "H:Blauw Kort"),
+        ("D10B", "D:Groen Kort"),
+        ("D-10", "D:Groen Kort"),
+        ("D-12", "D:Blauw Kort"),
+        ("D60", "D:Zwart Kort"),
+        ("D65", "D:Zwart Kort"),
+        ("D70", "D:Blauw Kort"),
+        ("D75", "D:Blauw Kort"),
+        ("D80", "D:Blauw Kort"),
+        ("D85", "D:Blauw Kort"),
+        ("D90", "D:Blauw Kort"),
     ]))
 });
 
@@ -183,7 +232,7 @@ pub fn store_event(
     if options.cup == "kampioen" || (options.results_by_class.unwrap_or(false)) {
         store_event_by_class(conn, event, options, event_db_id)?;
     } else {
-        store_event_by_course(conn, event, options, event_db_id)?;
+        store_event_by_colored_course(conn, event, options, event_db_id)?;
     }
 
     Ok(())
@@ -225,7 +274,7 @@ fn store_event_by_class(
     event_db_id: i64,
 ) -> anyhow::Result<()> {
     for category in event.categories.values() {
-        if !COURSES.contains_key(&category.name as &str)
+        if !COURSES_NUMBERED.contains_key(&category.name as &str)
             && !CLASSES.contains(&(&category.name as &str))
         {
             eprintln!("Skipping class {}", category.name);
@@ -309,20 +358,44 @@ fn is_ov_club(club: &str) -> bool {
     false
 }
 
-fn store_event_by_course(
+fn store_event_by_colored_course(
     conn: Connection,
     event: webres::Event,
     options: &ResultProcessingOptions,
     event_db_id: i64,
 ) -> Result<(), anyhow::Error> {
-    let category_re = regex::Regex::new(r"[H|D]:\d*(\d)$").unwrap();
-    for category in event.categories.values() {
-        let course_number = match category_re
-            .captures_iter(&category.name)
+    let all_courses: IndexSet<String> = [
+        "Zwart Extra Lang",
+        "Zwart Lang",
+        "Zwart Midden",
+        "Zwart Kort",
+        "Rood Midden",
+        "Blauw Kort",
+        "Groen Kort",
+    ]
+    .iter()
+    .map(|c| c.to_string())
+    .collect();
+
+    let course_re = regex::Regex::new(r"[H|D]:(.+)$").unwrap();
+    let get_course_name = |name| {
+        course_re
+            .captures_iter(name)
             .next()
-            .map(|g| g.get(1).unwrap().as_str().parse().unwrap())
-        {
-            Some(course_number) => course_number,
+            .map(|g| g.get(1).unwrap().as_str())
+    };
+
+    for category in event.categories.values() {
+        let course_name: &str = match get_course_name(&category.name) {
+            Some(course_name) => course_name,
+            None => {
+                eprintln!("Skipping course {}", category.name);
+                continue;
+            }
+        };
+
+        let course_index = match all_courses.get_index_of(course_name) {
+            Some(course_index) => course_index,
             None => {
                 eprintln!("Skipping course {}", category.name);
                 continue;
@@ -338,10 +411,24 @@ fn store_event_by_course(
                 override_age_class(&options.overrides, &result.name, age_class);
             let age_class = overridden_age_class.as_ref();
 
-            if COURSES[age_class as &str] < course_number {
+            let result_course_name = match get_course_name(COURSES_COLORS[age_class]) {
+                Some(result_course_name) => result_course_name,
+                None => {
+                    eprintln!(
+                        "unable to find course name {} for result {}",
+                        COURSES_COLORS[age_class], result.name
+                    );
+                    continue;
+                }
+            };
+            let result_index = all_courses
+                .get_index_of(result_course_name)
+                .unwrap_or_else(|| panic!("unknown course: {}", result_course_name));
+
+            if result_index < course_index {
                 eprintln!(
                     "{} {} is running in incorrect course {}, should run {}",
-                    result.name, age_class, course_number, COURSES[age_class as &str]
+                    result.name, age_class, course_name, COURSES_NUMBERED[age_class as &str]
                 );
                 continue;
             }
@@ -449,7 +536,9 @@ pub fn calculate_ranking(
         rules_2022::calculate_ranking(db, cup, season, age_class, events_count)
     } else if season < 2024 || (cup == "forest-cup" && season == 2024) {
         rules_2023::calculate_ranking(db, cup, season, age_class, events_count)
-    } else {
+    } else if season < 2026 {
         rules_2024::calculate_ranking(db, cup, season, age_class, events_count)
+    } else {
+        rules_2026::calculate_ranking(db, cup, season, age_class, events_count)
     }
 }

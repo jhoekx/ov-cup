@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Jeroen Hoekx
+// SPDX-FileCopyrightText: 2025 Jeroen Hoekx
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::collections::{HashMap, HashSet};
@@ -10,7 +10,8 @@ use regex::Regex;
 use rusqlite::{params, Connection};
 
 use crate::{
-    db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES_NUMBERED,
+    db::Database, total_seconds, Performance, RankingEntry, RankingScore, COURSES_COLORS,
+    COURSES_NUMBERED,
 };
 
 #[derive(Debug)]
@@ -109,21 +110,6 @@ pub(crate) fn calculate_ranking(
                 }
             }
         }
-
-        // Drop people who have valid results in the next age class
-        // for (k, v) in ALLOWED_CLASS_CHANGE.iter() {
-        //     if v.from_class == age_class {
-        //         let newer_performances: HashSet<_> =
-        //             calculate_performances(&conn, &cup, season, k)?
-        //                 .iter()
-        //                 .map(|p| p.name.clone())
-        //                 .collect();
-        //         results = results
-        //             .into_iter()
-        //             .filter(|p| !newer_performances.contains(&p.name))
-        //             .collect();
-        //     }
-        // }
     }
 
     // Calculate the total scores per runner
@@ -308,21 +294,9 @@ fn calculate_performances(
 }
 
 fn get_course(age_class: &str) -> anyhow::Result<(String, String)> {
-    if age_class.contains('|') {
-        let re = Regex::new(r"^(H|D)(.*)\|(\d)")?;
-        if let Some(groups) = re.captures(age_class) {
-            let effective_class = format!("{}{}", &groups[1], &groups[2]);
-            let effective_course = format!("{}:0{}", &groups[1], &groups[3]);
-            return Ok((effective_class, effective_course));
-        }
-    }
-
-    match age_class.chars().next() {
-        Some(gender) => match COURSES_NUMBERED.get(age_class) {
-            Some(course) => Ok((age_class.to_owned(), format!("{}:0{}", gender, course))),
-            None => bail!("age class not in courses"),
-        },
-        None => bail!("unknown course prefix"),
+    match COURSES_COLORS.get(age_class) {
+        Some(course_name) => Ok((age_class.to_owned(), course_name.to_string())),
+        None => bail!("age class not in courses"),
     }
 }
 
@@ -417,11 +391,7 @@ mod tests {
     fn course() {
         assert_eq!(
             get_course("H-18").unwrap(),
-            ("H-18".to_string(), "H:02".to_string())
-        );
-        assert_eq!(
-            get_course("H-12|5").unwrap(),
-            ("H-12".to_string(), "H:05".to_string())
+            ("H-18".to_string(), "H:Zwart Lang".to_string())
         );
     }
 
