@@ -144,6 +144,52 @@ static COURSES_COLORS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| 
     ]))
 });
 
+/// Courses used for Oro-Hydro 2025.
+static COURSES_ORO: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    HashMap::<_, _>::from_iter(IntoIterator::into_iter([
+        ("H-20", "H:1 Oro-hydro"),
+        ("H21", "H:1 Oro-hydro"),
+        ("H35", "H:1 Oro-hydro"),
+        ("H-18", "H:2 Oro-hydro"),
+        ("H40", "H:2 Oro-hydro"),
+        ("H45", "H:2 Oro-hydro"),
+        ("H50", "H:2 Oro-hydro"),
+        ("D-20", "D:2 Oro-hydro"),
+        ("D21", "D:2 Oro-hydro"),
+        ("H-16", "H:3 Oro-hydro"),
+        ("H55", "H:3 Oro-hydro"),
+        ("H60", "H:3 Oro-hydro"),
+        ("D-16", "D:3 Oro-hydro"),
+        ("D-18", "D:3 Oro-hydro"),
+        ("D35", "D:3 Oro-hydro"),
+        ("D40", "D:3 Oro-hydro"),
+        ("D45", "D:3 Oro-hydro"),
+        ("H-14", "H:4 Oro-hydro"),
+        ("H65", "H:4 Oro-hydro"),
+        ("D-14", "D:4 Oro-hydro"),
+        ("D50", "D:4 Oro-hydro"),
+        ("D55", "D:4 Oro-hydro"),
+        ("H10B", "H:5 IOF"),
+        ("H-10", "H:5 IOF"),
+        ("H-12", "H:5 Oro-hydro"),
+        ("H70", "H:5 Oro-hydro"),
+        ("H75", "H:5 Oro-hydro"),
+        ("H80", "H:5 Oro-hydro"),
+        ("H85", "H:5 Oro-hydro"),
+        ("H90", "H:5 Oro-hydro"),
+        ("D10B", "D:5 Oro-hydro"),
+        ("D-10", "D:5 IOF"),
+        ("D-12", "D:5 IOF"),
+        ("D60", "D:5 Oro-hydro"),
+        ("D65", "D:5 Oro-hydro"),
+        ("D70", "D:5 Oro-hydro"),
+        ("D75", "D:5 Oro-hydro"),
+        ("D80", "D:5 Oro-hydro"),
+        ("D85", "D:5 Oro-hydro"),
+        ("D90", "D:5 Oro-hydro"),
+    ]))
+});
+
 #[derive(Debug, Deserialize)]
 pub struct AgeClassOverride {
     pub cup: String,
@@ -231,6 +277,8 @@ pub fn store_event(
     let event_db_id = prepare_event(&conn, &options.cup, &options.season, &event)?;
     if options.cup == "kampioen" || (options.results_by_class.unwrap_or(false)) {
         store_event_by_class(conn, event, options, event_db_id)?;
+    } else if &event.name == "Herfstwisselbeker" && &options.season == "2026" {
+        store_oro_hydro_event(conn, event, event_db_id)?;
     } else {
         store_event_by_colored_course(conn, event, options, event_db_id)?;
     }
@@ -356,6 +404,127 @@ fn is_ov_club(club: &str) -> bool {
         }
     }
     false
+}
+
+fn store_oro_hydro_event(
+    conn: Connection,
+    event: webres::Event,
+    event_db_id: i64,
+) -> Result<(), anyhow::Error> {
+    let all_courses: IndexSet<String> = [
+        "1 Oro-hydro",
+        "2 Oro-hydro",
+        "3 Oro-hydro",
+        "4 Oro-hydro",
+        "5 Oro-hydro",
+        "5 IOF",
+    ]
+    .iter()
+    .map(|c| c.to_string())
+    .collect();
+
+    let course_re = regex::Regex::new(r"[H|D]:(.+)$").unwrap();
+    let get_course_name = |name| {
+        course_re
+            .captures_iter(name)
+            .next()
+            .map(|g| g.get(1).unwrap().as_str())
+    };
+
+    for category in event.categories.values() {
+        let course_name: &str = match get_course_name(&category.name) {
+            Some(course_name) => course_name,
+            None => {
+                eprintln!("Skipping course {}", category.name);
+                continue;
+            }
+        };
+
+        let course_index = match all_courses.get_index_of(course_name) {
+            Some(course_index) => course_index,
+            None => {
+                eprintln!("Skipping course {}", category.name);
+                continue;
+            }
+        };
+
+        for result in &category.results {
+            if result.status != "OK" || result.position == 0 {
+                continue;
+            }
+            let age_class = result.age_class.as_ref().unwrap();
+            let result_course_name = match get_course_name(COURSES_ORO[age_class.as_str()]) {
+                Some(result_course_name) => result_course_name,
+                None => {
+                    eprintln!(
+                        "unable to find course name {} for result {}",
+                        COURSES_ORO[age_class.as_str()],
+                        result.name
+                    );
+                    continue;
+                }
+            };
+            let result_index = all_courses
+                .get_index_of(result_course_name)
+                .unwrap_or_else(|| panic!("unknown course: {}", result_course_name));
+
+            if result_index < course_index {
+                eprintln!(
+                    "{} {} is running in incorrect course {}, should run {}",
+                    result.name,
+                    age_class,
+                    course_name,
+                    COURSES_ORO[age_class.as_str()]
+                );
+                continue;
+            }
+
+            let mut club = result.club.to_string();
+            for existing_club in CLUBS {
+                if club
+                    .to_lowercase()
+                    .starts_with(&existing_club.to_lowercase())
+                {
+                    club = existing_club.to_string();
+                }
+            }
+
+            // Replace category with real forest cup category
+            let replaced_category = COURSES_COLORS[age_class.as_str()];
+
+            conn.execute(
+                "
+                insert into Runner (name, club) values (?, ?)
+                on conflict (name) do update set club = excluded.club;
+            ",
+                params![result.name, club],
+            )?;
+            let runner_db_id: i64 = conn.query_row(
+                "
+                select id from Runner where name = ?
+            ",
+                params![result.name],
+                |row| row.get(0),
+            )?;
+
+            conn.execute(
+                "
+                insert into Result (event_id, runner_id, category_name, age_class, position, time)
+                values (?, ?, ?, ?, ?, ?)
+            ",
+                params![
+                    event_db_id,
+                    runner_db_id,
+                    replaced_category,
+                    age_class,
+                    result.position,
+                    result.time
+                ],
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 fn store_event_by_colored_course(
