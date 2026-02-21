@@ -665,7 +665,7 @@ fn override_age_class(overrides: &[AgeClassOverride], name: &str, age_class: &st
 struct Performance {
     name: String,
     club: String,
-    event_id: u64,
+    event_id: i64,
     age_class: String,
     category_name: String,
     position: u32,
@@ -680,7 +680,7 @@ fn total_seconds(time: impl Timelike) -> u32 {
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct RankingScore {
     #[serde(rename = "eventId")]
-    event_id: u64,
+    event_id: i64,
     score: Option<u32>,
     place: Option<u32>,
 }

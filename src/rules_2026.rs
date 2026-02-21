@@ -83,7 +83,7 @@ pub(crate) fn calculate_ranking(
         conn.prepare("select id from Event where cup = ? and season = ? order by date asc")?;
     let events: Vec<_> = stmt
         .query_map(params![cup, season], |row| {
-            let event_id: u64 = row.get(0)?;
+            let event_id: i64 = row.get(0)?;
             Ok(event_id)
         })?
         .filter_map(|event_id| event_id.ok())
@@ -120,7 +120,7 @@ pub(crate) fn calculate_ranking(
         .chunk_by(|result| result.name.to_owned())
     {
         // Keep the best results for each event for each runner
-        let results_by_event: HashMap<u64, Vec<Performance>> = runner_results
+        let results_by_event: HashMap<_, _> = runner_results
             .into_iter()
             .sorted_by_key(|p| p.event_id)
             .into_group_map_by(|p| p.event_id);

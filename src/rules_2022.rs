@@ -21,7 +21,7 @@ pub(crate) fn calculate_ranking(
     // Find all events
     let mut stmt =
         conn.prepare("select id from Event where cup = ? and season = ? order by date asc")?;
-    let events: Vec<u64> = stmt
+    let events: Vec<i64> = stmt
         .query_map(params![cup, season], |row| {
             let event_id = row.get(0)?;
             Ok(event_id)
@@ -84,7 +84,7 @@ pub(crate) fn calculate_ranking(
     }
 
     // Find the best results in all courses that someone of the given age class participated in
-    let courses: Vec<(u64, String)> = results
+    let courses: Vec<(_, _)> = results
         .iter()
         .map(|result| (result.event_id, result.category_name.to_owned()))
         .unique()
